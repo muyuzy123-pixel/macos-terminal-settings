@@ -8,6 +8,10 @@ Bring macOS preferences usually adjusted with Terminal commands into a native in
 
 See [release status](docs/RELEASE_STATUS.md) for distribution status and verified scope.
 
+![Dock numeric controls showing current values of 35 and 37 points and unapplied drafts of 48 and 64 points](docs/images/dock-numeric-controls.png)
+
+*Actual app window from an isolated preview copy. The 48/64-point drafts have not been applied; the current system values remain 35/37 points.*
+
 ## What you can change
 
 The app includes **40 settings across 8 categories**, with **7 numeric control groups and 10 parameters**.
