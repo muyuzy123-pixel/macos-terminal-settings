@@ -1,12 +1,12 @@
 # Public release readiness
 
-The clean repository migration completed on 2026-09-20. **Both repositories remain private.** The new repository is ready for a separate decision about public access; the original repository is retained as a private archive.
+The clean repository migration completed on 2026-09-20. The active repository first became **public** on 2026-09-20 02:03:59 UTC. The original archive remains **private**.
 
 ## Repository migration
 
 | Role | Repository | GitHub repository ID | Visibility |
 | --- | --- | ---: | --- |
-| Active, clean repository | [macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings) | 1377772976 | Private |
+| Active, clean repository | [macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings) | 1377772976 | Public |
 | Original archive | [macos-terminal-settings-private-archive](https://github.com/muyuzy123-pixel/macos-terminal-settings-private-archive) | 1377740283 | Private |
 
 The active repository was created independently, not as a fork. Only the audited clean `main` history and `v1.9.0-preview.1` tag were pushed into it. Local development still uses the original repository URL, which now resolves to the new repository. No application code, preference behavior, permissions, or release asset bytes changed during migration.
@@ -35,12 +35,21 @@ All three new assets were downloaded independently and matched the old release a
 - Fresh [GitHub Actions verification](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35481438157) passed for migrated commit `c95b4971d60c663b3c253ee0b24d6a1ec3fd4147`, covering contracts, build, independent archive checks, and artifact upload.
 - The subsequent migration-status update changes documentation only; it does not change the tested application or build inputs.
 
-## Remaining public-access steps
+## First public release
 
-Public access has **not** been enabled. When the maintainer authorizes it:
+- Only the active repository (ID 1377772976) was switched to public; the archive (ID 1377740283) remained private.
+- Private vulnerability reporting was enabled and verified before activating the public reporting policy in [SECURITY.md](../SECURITY.md). Vulnerability reports require a signed-in GitHub account; no test report was submitted.
+- The existing preview release uses the prepared [public release notes](publication/release-notes.md). Its tag, release/asset IDs, asset bytes, and prerelease status are preserved.
+- The screenshot/documentation commit passed [CI](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35482821644) before the visibility change. Public access exposes repository and Actions history; the preflight covered both.
 
-1. Change only `muyuzy123-pixel/macos-terminal-settings` to public. Keep `macos-terminal-settings-private-archive` private. Public visibility exposes the active repository's history, releases, and Actions history/logs; see [GitHub's visibility documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).
-2. Enable and verify [private vulnerability reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository), apply the prepared [security-reporting text](publication/security-reporting.md), and publish the prepared [release notes](publication/release-notes.md).
-3. Check anonymous access to the active README, MIT license, preview tag, and all three assets, and confirm that the archive remains inaccessible anonymously. Update the distribution status after those checks.
+Anonymous verification passed without GitHub credentials or Authorization/Cookie request headers:
 
-Keep the preview label and the existing disclosures: ad-hoc signing without Developer ID or notarization, legacy privileged execution, and the stated device-validation limits. Changing repository visibility does not change those technical limits.
+| Check | Result |
+| --- | --- |
+| Repository, both READMEs, screenshot, license, preview tag and release page | HTTP 200; raw content matches local files |
+| Three release assets | HTTP 200; byte-for-byte and SHA-256 match; strict archive and license checks pass |
+| Private archive API and web page | HTTP 404 |
+| Both historical commits in the active repository | Git-data HTTP 404; commit lookup HTTP 422, no identity payload |
+| Private vulnerability reporting | Enabled; report entry available, sign-in required to submit; no test report sent |
+
+The [machine-readable publication record](publication/verification.json) contains timestamps, source/asset identities, and the validation summary. Raw audit snapshots remain local and ignored by Git. Ad-hoc signing without Developer ID or notarization, legacy privileged execution, and the stated device-validation limits remain unchanged. Public availability does not establish additional device-effect or security acceptance.

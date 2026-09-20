@@ -1,6 +1,6 @@
 # Repository and preview release status
 
-Prepared from the 1.9.0 (Build 17) development baseline on 2026-09-19. On 2026-09-20, the maintainer selected MIT and authorized the private repository [muyuzy123-pixel/macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings). The original repository was subsequently renamed to `macos-terminal-settings-private-archive` and retained as private. A new independent private repository now uses the original name; the migration and checks are recorded in [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md).
+Prepared from the 1.9.0 (Build 17) development baseline on 2026-09-19. On 2026-09-20, the maintainer selected MIT and authorized the private repository [muyuzy123-pixel/macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings). The original repository was subsequently renamed to `macos-terminal-settings-private-archive` and retained as private. A new independent repository now uses the original name; the migration and checks are recorded in [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md).
 
 ## Completed locally
 
@@ -26,9 +26,10 @@ Environment: Apple silicon arm64, macOS 26.6.2 (25G83), Swift 6.3.3, macOS 26.5 
 
 ## Repository distribution
 
+- Anonymous source/download access and privacy isolation passed; see the [publication verification record](publication/verification.json).
 - License: [MIT](../LICENSE), copyright 2026 muyuzy123-pixel. The license notice is included in the app bundle and verified against the repository copy.
-- Visibility remains **private** while public-release preparation is completed. See [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md) for the completed migration that isolates the historical-email remnants in the private archive. Public access still requires a separate instruction.
-- Fresh [GitHub Actions verification](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35481438157) passed in the new repository for migrated commit `c95b4971d60c663b3c253ee0b24d6a1ec3fd4147`. Later migration-status documentation does not change the tested application or build inputs.
-- The [v1.9.0-preview.1 prerelease](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) is available to repository collaborators with three verified assets. Source author-email metadata has been sanitized; application source files and release asset bytes remain unchanged.
+- The active repository became **public** on 2026-09-20 02:03:59 UTC. The original archive remains **private**. See [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md) for migration, privacy isolation, and publication details.
+- [Public-preparation CI](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35482821644) passed for screenshot/documentation commit `cdb2478e5caafbd795e48ea4f9a9a85d61947e38`. Final publication-status documentation does not change the tested application or build inputs.
+- The [v1.9.0-preview.1 prerelease](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) is publicly available with the same three verified assets. Source author-email metadata has been sanitized; application source files and release asset bytes remain unchanged.
 
 The first-publication screenshot provides limited visual evidence for the English Dock size panel in an isolated copy: current values 35/37 points and unapplied drafts 48/64 points. Screenshot capture did not exercise Apply or device effects; the before/after audit of all 46 preference addresses, power settings, production app state, recovery files, and residue inventory passed unchanged. This is not broader GUI or device-effect acceptance. Historical Build 17 UI results remain historical. Real macOS 14, managed profiles, advanced power writes, Developer ID, notarization, and migration away from the legacy authorization API remain outside this local validation.

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "published_at_utc": "2026-09-20T02:03:59.372340+00:00",
+  "verified_at_utc": "2026-09-20T02:07:27.852339+00:00",
+  "repository": "muyuzy123-pixel/macos-terminal-settings",
+  "repository_id": 1377772976,
+  "visibility": "public",
+  "archive_repository": "muyuzy123-pixel/macos-terminal-settings-private-archive",
+  "archive_repository_id": 1377740283,
+  "archive_private": true,
+  "pre_public_commit": "cdb2478e5caafbd795e48ea4f9a9a85d61947e38",
+  "ci_url": "https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35482821644",
+  "ci_conclusion": "success",
+  "preview_tag": "v1.9.0-preview.1",
+  "preview_source_commit": "e1456633dbffc392b3ebb2608f7dea3ee8e41039",
+  "release_id": 392275201,
+  "prerelease": true,
+  "private_vulnerability_reporting_enabled": true,
+  "anonymous_verification": {
+    "repository_readmes_image_license_tag_release": "http_200",
+    "readmes_image_license_match_local_bytes": true,
+    "release_assets": "all_three_http_200_and_byte_identical",
+    "archive_api_and_page": "http_404",
+    "historical_commit_git_data": "both_http_404",
+    "historical_commit_lookup": "both_http_422_no_commit_found_no_identity_payload",
+    "vulnerability_reporting": "enabled_true_report_entry_available_login_required_for_submission",
+    "test_report_submitted": false
+  },
+  "screenshot": {
+    "path": "docs/images/dock-numeric-controls.png",
+    "sha256": "1528ea81098599b110c2b65df07b35b0cd866c9bd3e848e7cf727b3f2ae1aaed",
+    "language": "en",
+    "current_values": [
+      35,
+      37
+    ],
+    "unapplied_drafts": [
+      48,
+      64
+    ],
+    "production_state_audit": "all_46_addresses_power_app_state_recovery_files_and_residues_unchanged"
+  },
+  "release_assets": [
+    {
+      "name": "TerminalSettings.zip",
+      "sha256": "9c1e3f429ccc4012c1c52854edb5c5706c7c4f7f9819f65809c9d9b549986c52",
+      "bytes": 1540677
+    },
+    {
+      "name": "SHA256SUMS",
+      "sha256": "3ea586922e638aba58f2e3a724b8c4718e6ec3e0df4aa92fe5cb3745332317df",
+      "bytes": 87
+    },
+    {
+      "name": "release-manifest.json",
+      "sha256": "09ffc4f69b9e6e07d8505bd0b2ded54f8716a0566bb465aa0515894743336c5f",
+      "bytes": 3500
+    }
+  ],
+  "limitations": [
+    "ad-hoc signed; no Developer ID or notarization",
+    "no new device-effect or privileged-write acceptance",
+    "final publication-record edits are documentation only"
+  ]
+}

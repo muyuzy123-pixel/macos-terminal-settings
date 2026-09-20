@@ -1,6 +1,6 @@
 # Release procedure
 
-1. The license is MIT (copyright 2026 muyuzy123-pixel). Public-release preparation for `muyuzy123-pixel/macos-terminal-settings` is recorded in [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md). Keep the repository private until the maintainer confirms the visibility change after reviewing the exposed content.
+1. The license is MIT (copyright 2026 muyuzy123-pixel). Public-release preparation for `muyuzy123-pixel/macos-terminal-settings` is recorded in [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md). The first public release is complete. Keep the original private archive private; future visibility changes require a maintainer instruction.
 2. Review the exact Git file list. Exclude QA snapshots, previous artifacts, migration scripts, machine paths, secrets, and signing keys. Resolve third-party code or artwork license questions before publication.
 3. Keep source and `Info.plist` aligned. The first public source snapshot inherits 1.9.0 / Build 17; packaging changes alone do not imply new app behavior. Application changes require an intentional version decision.
 4. Run `zsh verify.sh --contract-only`, the appropriate integration/UI checks, `zsh build.sh`, and `zsh scripts/check-release.sh` on the final tree. Do not publish older ZIPs alongside newer source hashes.

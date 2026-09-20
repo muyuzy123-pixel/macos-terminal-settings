@@ -1,4 +1,6 @@
-First MIT-licensed preview of Terminal Settings, based on version 1.9.0 (Build 17).
+First public MIT-licensed preview of Terminal Settings, based on version 1.9.0 (Build 17).
+
+Public access enabled on 2026-09-20 02:03:59 UTC. Existing release assets are unchanged.
 
 - Native macOS interface, English and Simplified Chinese, 40 curated settings, and 7 numeric control groups.
 - Source, build scripts, tests, and MIT license are included in the repository. The app bundle includes the same license notice.

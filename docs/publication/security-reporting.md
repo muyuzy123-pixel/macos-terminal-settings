@@ -1,6 +1,6 @@
-# Prepared public security-reporting text
+# Public security-reporting text
 
-Replace the final paragraph of the root SECURITY.md with the text below only after private vulnerability reporting has been enabled and its entry point verified. This draft does not claim that the reporting form is currently available.
+Activated on 2026-09-20 02:03:59 UTC after GitHub confirmed private vulnerability reporting was enabled. The live policy is [SECURITY.md](../../SECURITY.md).
 
 ---
 
