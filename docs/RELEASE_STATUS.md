@@ -1,6 +1,6 @@
 # Repository and preview release status
 
-Prepared from the 1.9.0 (Build 17) development baseline on 2026-09-19. On 2026-09-20, the maintainer selected MIT and authorized the private repository [muyuzy123-pixel/macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings). The repository has been created and its private visibility verified.
+Prepared from the 1.9.0 (Build 17) development baseline on 2026-09-19. On 2026-09-20, the maintainer selected MIT and authorized the private repository [muyuzy123-pixel/macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings). The original repository was subsequently renamed to `macos-terminal-settings-private-archive` and retained as private. A new independent private repository now uses the original name; the migration and checks are recorded in [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md).
 
 ## Completed locally
 
@@ -27,8 +27,8 @@ Environment: Apple silicon arm64, macOS 26.6.2 (25G83), Swift 6.3.3, macOS 26.5 
 ## Repository distribution
 
 - License: [MIT](../LICENSE), copyright 2026 muyuzy123-pixel. The license notice is included in the app bundle and verified against the repository copy.
-- Visibility remains **private** while public-release preparation is completed. See [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md) for the completed checks and the remaining server-side historical-email issue.
-- Current remote verification is available in [GitHub Actions](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions). Check the run for the specific commit; the local evidence above does not imply a remote pass.
+- Visibility remains **private** while public-release preparation is completed. See [PUBLIC_RELEASE_READINESS.md](PUBLIC_RELEASE_READINESS.md) for the completed migration that isolates the historical-email remnants in the private archive. Public access still requires a separate instruction.
+- Fresh [GitHub Actions verification](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35481438157) passed in the new repository for migrated commit `c95b4971d60c663b3c253ee0b24d6a1ec3fd4147`. Later migration-status documentation does not change the tested application or build inputs.
 - The [v1.9.0-preview.1 prerelease](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) is available to repository collaborators with three verified assets. Source author-email metadata has been sanitized; application source files and release asset bytes remain unchanged.
 
 There is no new GUI or device-effect acceptance for this rebuilt artifact. Historical Build 17 UI results remain historical. Real macOS 14, managed profiles, advanced power writes, Developer ID, notarization, and migration away from the legacy authorization API remain outside this local validation.

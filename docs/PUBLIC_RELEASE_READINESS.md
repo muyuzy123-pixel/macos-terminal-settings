@@ -1,41 +1,46 @@
 # Public release readiness
 
-Prepared on 2026-09-20. The repository is still **private**. README revisions and source/asset checks are complete; the original repository should not be made public yet because GitHub still returns the former author email when queried by an old commit ID.
+The clean repository migration completed on 2026-09-20. **Both repositories remain private.** The new repository is ready for a separate decision about public access; the original repository is retained as a private archive.
 
-## README and behavior review
+## Repository migration
 
-The English and Chinese README files now distinguish draft editing from every submission path, limit immediate-action menus to controls that choose system values, explain default-branch versus preview-tag builds, and state the actual validation scope. They also clarify override deletion, failed checksum/build handling, and uninstall behavior. These descriptions were checked against the current source. Runtime code, preferences, permissions, and release assets were not changed.
+| Role | Repository | GitHub repository ID | Visibility |
+| --- | --- | ---: | --- |
+| Active, clean repository | [macos-terminal-settings](https://github.com/muyuzy123-pixel/macos-terminal-settings) | 1377772976 | Private |
+| Original archive | [macos-terminal-settings-private-archive](https://github.com/muyuzy123-pixel/macos-terminal-settings-private-archive) | 1377740283 | Private |
 
-A new product screenshot is optional. None has been fabricated or copied from machine-state QA records.
+The active repository was created independently, not as a fork. Only the audited clean `main` history and `v1.9.0-preview.1` tag were pushed into it. Local development still uses the original repository URL, which now resolves to the new repository. No application code, preference behavior, permissions, or release asset bytes changed during migration.
 
-## Content prepared for publication
+## Author-email isolation
 
-- MIT-licensed source, bilingual resources, tests, reproducible-from-source icon generation, build/release scripts, and project documentation.
-- The existing `v1.9.0-preview.1` prerelease and exactly three verified assets: `TerminalSettings.zip`, `SHA256SUMS`, and `release-manifest.json`.
+The maintainer chose GitHub noreply addresses for author and committer metadata. Both original commits were rewritten with their file trees unchanged. The initial clean history contained three commits and 65 objects (47 blobs, 15 trees, 3 commits), all reachable, with no alternate object database. An exact scan of every clean object found no occurrence of the former email. This repository's local Git identity uses noreply; global Git configuration was not changed.
+
+Rewriting refs in the original repository had left old commit objects retrievable from GitHub. That repository was therefore renamed and kept private. After migration, authenticated checks against the **new** repository could not resolve either historical commit: Git-data requests returned 404, and ordinary commit requests returned 422 with a no-commit-found response and no author/committer payload. Valid clean commits remained readable and their identities and file trees matched the local audit.
+
+The original archive and ignored local backups still retain historical data. This is isolation from the active repository, not a claim that all historical copies were erased. The former Actions runs that directly stored the old email were backed up locally and removed before migration. Only fresh CI records belong to the new repository.
+
+## README and source review
+
+The English and Chinese README files distinguish draft editing from every submission path, limit immediate-action menus to controls that choose system values, and explain default-branch versus preview-tag builds. They clarify actual validation scope, override deletion, failed checksum/build handling, and uninstall behavior. These descriptions were checked against the source; GitHub Markdown rendering and local links passed review.
+
+The content audit covered the original Git history, all refs and tracked files, release metadata/assets, Actions logs/artifacts, and issue/PR/wiki/Pages exposure. No personal filesystem paths, preference exports, recovery records, common token/private-key patterns, or unintended build artifacts were found in the source/asset content selected for migration. GitHub runner paths occur in CI logs. This is a scoped inspection, not a proof against every possible secret. Raw QA, backups, and audit evidence stay in ignored local directories.
+
+## Release and verification
+
+The [v1.9.0-preview.1 prerelease](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) was recreated in the new repository. The source tag still points to `e1456633dbffc392b3ebb2608f7dea3ee8e41039`; its files are unchanged by email sanitization or migration. The three assets are exactly `TerminalSettings.zip`, `SHA256SUMS`, and `release-manifest.json`.
+
+All three new assets were downloaded independently and matched the old release and local migration baseline byte-for-byte. Server digests, the checksum file, strict code signing, ZIP inventory, all packaged resources, and the embedded MIT notice were verified. New release and asset IDs differ from the archive's IDs.
+
 - ZIP SHA-256: `9c1e3f429ccc4012c1c52854edb5c5706c7c4f7f9819f65809c9d9b549986c52`.
-- Preview source commit after email sanitization: `e1456633dbffc392b3ebb2608f7dea3ee8e41039`. Its file tree is identical to the original release source tree. The downloaded assets remain byte-identical to the locally verified files.
-- Prepared [public release notes](publication/release-notes.md) and [private vulnerability-reporting text](publication/security-reporting.md).
+- Fresh [GitHub Actions verification](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/35481438157) passed for migrated commit `c95b4971d60c663b3c253ee0b24d6a1ec3fd4147`, covering contracts, build, independent archive checks, and artifact upload.
+- The subsequent migration-status update changes documentation only; it does not change the tested application or build inputs.
 
-The audit covered every object in the original local Git history (48 blobs, 16 trees, 2 commits), all original refs, and all 37 originally tracked files. It also covered release metadata/assets, both original Actions runs and their logs/artifacts, and repository issue/PR/wiki/Pages exposure. No personal filesystem paths, preference exports, recovery records, common token/private-key patterns, or unintended build artifacts were found in the content being prepared. GitHub runner paths are present in CI logs. This is a scoped inspection, not a proof against every possible secret.
+## Remaining public-access steps
 
-Issues and pull requests were empty. Wiki, Discussions, and Pages were not enabled. Raw local QA data, original-history backups, and audit evidence remain in ignored local directories and are not publication assets.
+Public access has **not** been enabled. When the maintainer authorizes it:
 
-## Author-email privacy
+1. Change only `muyuzy123-pixel/macos-terminal-settings` to public. Keep `macos-terminal-settings-private-archive` private. Public visibility exposes the active repository's history, releases, and Actions history/logs; see [GitHub's visibility documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).
+2. Enable and verify [private vulnerability reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository), apply the prepared [security-reporting text](publication/security-reporting.md), and publish the prepared [release notes](publication/release-notes.md).
+3. Check anonymous access to the active README, MIT license, preview tag, and all three assets, and confirm that the archive remains inaccessible anonymously. Update the distribution status after those checks.
 
-The maintainer chose GitHub noreply email sanitization. Both existing commits were rewritten for author and committer email, with every file tree preserved. Main and the preview tag were updated using exact force-with-lease conditions. This repository's local Git email is now the GitHub noreply address; global Git configuration was not changed.
-
-The two original Actions runs separately stored the former email in their metadata. Their metadata/logs were backed up locally, then the runs and their associated artifacts were removed. Release provenance was updated to the sanitized source commit. New CI runs use the sanitized history.
-
-**Residual found:** authenticated GitHub Git-data API requests using the two old commit IDs still return those old commit objects and their former email. Rewriting visible refs does not prove that server-side historical objects have been removed. A direct public-visibility switch on this original repository therefore does not meet the chosen privacy objective.
-
-## Prepared migration and public-access steps
-
-The proposed next operation, subject to maintainer confirmation, is:
-
-1. Rename the current repository to `macos-terminal-settings-private-archive` and keep it private. Preserve its release, original-object remnants, and audit context there.
-2. Create a new **private**, independent repository at `muyuzy123-pixel/macos-terminal-settings`. Push only a clean Git object set containing the sanitized reachable history, and recreate the same prerelease from the verified assets. Do not fork the archive or transfer its object database.
-3. Confirm that the new repository cannot resolve the old commit IDs, that all reachable author/committer emails use noreply, that release asset hashes match, and that fresh CI passes. Verify default branch, MIT recognition, and release/tag provenance.
-4. After the maintainer explicitly confirms public access, switch only the new clean repository to public. The archive remains private. A public repository makes its reachable history, release assets, and Actions history/logs available; see [GitHub's visibility documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).
-5. Enable and verify [private vulnerability reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository), apply the prepared security text, and update the live release notes/status. Check anonymous access to the README, license, tag, and assets.
-
-The migration has not yet been executed. Public access has not been enabled. Ad-hoc signing, lack of notarization, legacy privileged execution, and device-validation limits remain accurately disclosed; public visibility does not change those limits.
+Keep the preview label and the existing disclosures: ad-hoc signing without Developer ID or notarization, legacy privileged execution, and the stated device-validation limits. Changing repository visibility does not change those technical limits.
