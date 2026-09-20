@@ -1,0 +1,50 @@
+name: Verify and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select runner Xcode and record environment
+        shell: zsh {0}
+        run: |
+          set -euo pipefail
+          developer_dir="$(xcode-select -p)"
+          sdk_root="$(DEVELOPER_DIR="$developer_dir" xcrun --sdk macosx --show-sdk-path)"
+          print -r -- "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+          print -r -- "SDKROOT=$sdk_root" >> "$GITHUB_ENV"
+          sw_vers
+          uname -m
+          DEVELOPER_DIR="$developer_dir" xcrun swiftc --version
+          plutil -extract Version raw "$sdk_root/SDKSettings.plist"
+      - name: Verify contracts
+        run: |
+          zsh verify.sh --contract-only
+      - name: Build ad-hoc preview
+        run: zsh build.sh
+      - name: Independently verify the archive
+        run: zsh scripts/check-release.sh
+      - name: Save verified preview and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: TerminalSettings-arm64-preview
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

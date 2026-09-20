@@ -1,0 +1,26 @@
+# Local build products and release artifacts
+.build/
+dist/
+*.app/
+*.zip
+*.dmg
+*.pkg
+*.dSYM/
+# Development evidence may contain local preferences and recovery records
+QA/
+releases/
+*.log
+# macOS / editor metadata
+.DS_Store
+.AppleDouble/
+._*
+.vscode/
+.idea/
+# Local configuration and signing material
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision
+.TerminalSettingsPublish.*/
+.AppIcon.icns.*

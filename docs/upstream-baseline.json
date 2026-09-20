@@ -1,0 +1,83 @@
+{
+  "version": "1.9.0",
+  "build": "17",
+  "description": "Imported development baseline, before open-source packaging changes. No development QA data or previous binaries included.",
+  "files": [
+    {
+      "path": "AppIcon.icns",
+      "sha256": "e37a0e7a69c86e819d18bc5ac86cd02134df6afe949584b28a822cb49add1b06"
+    },
+    {
+      "path": "Info.plist",
+      "sha256": "fc248e6de218a6902b7bbd89e3912ffb2ba0bcb47b18bf389ac68331edea2f4d"
+    },
+    {
+      "path": "Resources/en.lproj/InfoPlist.strings",
+      "sha256": "065a6ecb10f82409cc3ed24c535e4845df3e4d794a224355fc6e2466c491302a"
+    },
+    {
+      "path": "Resources/en.lproj/Localizable.strings",
+      "sha256": "50ff101f7c54c755b17325a70f1c24c334d12c1a091ebd28c9a07a8b967b28e9"
+    },
+    {
+      "path": "Resources/zh-Hans.lproj/InfoPlist.strings",
+      "sha256": "a33b0b1398f3f2395d143018a83d8661799dec121b467a06fc6b1711f4252d34"
+    },
+    {
+      "path": "Resources/zh-Hans.lproj/Localizable.strings",
+      "sha256": "c8750adec6bab3b4a768ba62933cc9285eca847baa41a881341e1211c76dfbc6"
+    },
+    {
+      "path": "Source/AuthorizationBridge.c",
+      "sha256": "8748f8293a218c5adc2ca167bf4aedc255de8e56d7905432330d354a11f19a77"
+    },
+    {
+      "path": "Source/Catalog.swift",
+      "sha256": "9fd15a8832d2cab3c78ea2e655875a6195dea29287628d68a7dc52760773f80f"
+    },
+    {
+      "path": "Source/Dependencies.swift",
+      "sha256": "d3c0fb57d7bf4b85e5a4f9fda5ab9680de7f712098cb3676bd41bd2ea8e4f902"
+    },
+    {
+      "path": "Source/GenerateIcon.swift",
+      "sha256": "815154957f6d825c9fc7b23cb055e7ee305ec03cc44e36ea3b1b24f9bf5f305e"
+    },
+    {
+      "path": "Source/Localization.swift",
+      "sha256": "fa621751cb09ae773e81acfe3b8766b7f2c8f8f1c427ab55ff7b5ec1542db4a6"
+    },
+    {
+      "path": "Source/Models.swift",
+      "sha256": "6763800e385663de07cb929e82c368df7348c9e65295682e26df678314a0198e"
+    },
+    {
+      "path": "Source/PowerSettingsExecutor.swift",
+      "sha256": "e755d38a068a82433d109aba9b7257d21db09e3354bc3cd03302f424e8d67eda"
+    },
+    {
+      "path": "Source/PreferencesStore.swift",
+      "sha256": "a84c3c5fdf923be63cf830dea9b7c0178331a31d5c000bc1b719325fd060fa6e"
+    },
+    {
+      "path": "Source/TerminalSettingsApp.swift",
+      "sha256": "fd8325d5d83602de2fd1ded3cc3e3d283cf3436d01bb5a7a1e146627ddad0167"
+    },
+    {
+      "path": "Source/Views.swift",
+      "sha256": "abccd8e4cc08630a3627f6f095f8294e9f8746e165462f0544556d42e8151e53"
+    },
+    {
+      "path": "Tests/TerminalSettingsChecks.swift",
+      "sha256": "6da0e9a5b3a495012d0fa18418c1fa6069efe7ad8a4c3ef4c9120f11d3012e18"
+    },
+    {
+      "path": "build.sh",
+      "sha256": "e76681945db454aa1bedb172cd7315042b144a7f55c1f2b4ca89cfd5f236a89e"
+    },
+    {
+      "path": "verify.sh",
+      "sha256": "52ecc30a3417020992be477eeaf503dffa2d5a113eeed5703904701f63b3cced"
+    }
+  ]
+}
