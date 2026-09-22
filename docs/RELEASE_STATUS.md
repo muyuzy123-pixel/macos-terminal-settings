@@ -33,3 +33,10 @@ Environment: Apple silicon arm64, macOS 26.6.2 (25G83), Swift 6.3.3, macOS 26.5 
 - The [v1.9.0-preview.1 prerelease](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) is publicly available with the same three verified assets. Source author-email metadata has been sanitized; application source files and release asset bytes remain unchanged.
 
 The first-publication screenshot provides limited visual evidence for the English Dock size panel in an isolated copy: current values 35/37 points and unapplied drafts 48/64 points. Screenshot capture did not exercise Apply or device effects; the before/after audit of all 46 preference addresses, power settings, production app state, recovery files, and residue inventory passed unchanged. This is not broader GUI or device-effect acceptance. Historical Build 17 UI results remain historical. Real macOS 14, managed profiles, advanced power writes, Developer ID, notarization, and migration away from the legacy authorization API remain outside this local validation.
+
+
+## Screenshot correction — 2026-09-22
+
+The English README now uses an English capture and the Chinese README a Simplified Chinese capture. Both are native 2120×1520 RGBA PNGs with transparent corners, without the Computer Use pointer or an added white matte. No pixels were upscaled or passed through JPEG. The native window's own thin frame remains visible.
+
+The captures show unchanged current values 35/37 and unapplied drafts 48/64. This run independently verified all 46 production preference addresses, power settings, production app state/recovery files, and residue inventory unchanged after QA cleanup. It is a limited visual check, not new device-effect acceptance. Application code, the preview tag, and all three release assets remain unchanged. See the [dated screenshot verification](publication/screenshots-2026-09-22.json); the first-publication record above remains historical.

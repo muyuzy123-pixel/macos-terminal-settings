@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-09-22",
+  "verified_at_utc": "2026-09-22T05:31:20.290448+00:00",
+  "purpose": "Replace current README illustrations with separate native-resolution English and Simplified Chinese captures.",
+  "capture_method": "macOS screencapture -x -o -a -t png -l; isolated release-copy window; no cursor capture, no shadow, no JPEG conversion or resizing.",
+  "image_processing": "Only ancillary EXIF/text metadata removed; captured PNG image-data chunks left unchanged.",
+  "images": [
+    {
+      "language": "en",
+      "path": "docs/images/dock-numeric-controls-en.png",
+      "sha256": "50988d19122d0ce4a104cb3a40790d8bc5d8b1e25f9fbc7327422e3989f0ed41",
+      "pixel_dimensions": [
+        2120,
+        1520
+      ],
+      "window_points": [
+        1060,
+        760
+      ],
+      "native_scale": 2,
+      "format": "PNG",
+      "mode": "RGBA",
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "metadata_removed": [
+        "eXIf",
+        "iTXt"
+      ],
+      "captured_idat_sha256": "34c2d8b217b8dd6b88697f276fc7f925e3f7bd64db5173ff1ca17feab6c9edc9",
+      "image_data_reencoded": false
+    },
+    {
+      "language": "zh-Hans",
+      "path": "docs/images/dock-numeric-controls-zh-Hans.png",
+      "sha256": "e02e6a4c4eb81ddd8873b012b9db00fccf253ab2d892147ffd625d6dee73f810",
+      "pixel_dimensions": [
+        2120,
+        1520
+      ],
+      "window_points": [
+        1060,
+        760
+      ],
+      "native_scale": 2,
+      "format": "PNG",
+      "mode": "RGBA",
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "metadata_removed": [
+        "eXIf",
+        "iTXt"
+      ],
+      "captured_idat_sha256": "839f071dec4b42cfc87f6f826d20818155b91cf96bbe4b42dcc10deac94c9962",
+      "image_data_reencoded": false
+    }
+  ],
+  "visible_state": {
+    "current_normal_size": 35,
+    "current_magnified_size": 37,
+    "draft_normal_size": 48,
+    "draft_magnified_size": 64,
+    "drafts_applied": false
+  },
+  "visual_review": {
+    "separate_language_screenshots": true,
+    "current_values_drafts_and_apply_visible": true,
+    "computer_use_pointer_absent": true,
+    "extra_white_matte_or_border_absent": true,
+    "native_window_border_preserved": true,
+    "private_information_not_found": true
+  },
+  "production_state_audit": {
+    "date": "2026-09-22",
+    "preference_address_count": 46,
+    "unchanged_sections": [
+      "environment",
+      "preferences",
+      "power",
+      "appState",
+      "appFiles",
+      "residues"
+    ],
+    "qa_app_and_state_cleaned_up": true
+  },
+  "historical_record_preserved": "docs/publication/verification.json and its original image remain unchanged as the 2026-09-20 publication record.",
+  "application_or_release_changes": false
+}
