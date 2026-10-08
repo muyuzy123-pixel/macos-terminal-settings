@@ -29,7 +29,7 @@ The app includes **40 settings across 8 categories**, with **7 numeric control g
 
 - **See what will change.** View current values, descriptions, risk labels, sources, and equivalent commands.
 - **Edit precise values.** Keep numeric drafts separate from the current system value; review the submission paths described below.
-- **Work in either language.** Switch between English and Simplified Chinese immediately; search in either language or by preference key. Numbers follow the system region.
+- **Work in your language.** Switch between English, Simplified Chinese, and Spanish immediately; search in any of them or by preference key. Numbers follow the system region.
 - **Undo and recover.** The app records values before changing them and checks management restrictions and external edits before restoring them.
 
 The catalog distinguishes **34 Terminal-only settings**, **4 System Settings enhancements**, and **2 mirrors**. Some preferences are undocumented or experimental. Availability and effects vary by macOS version; a successful write/read-back confirms the stored value, not its visible effect.
@@ -59,7 +59,7 @@ This preview is **not notarized**, so macOS may block it. Review [Apple's guidan
 
 ## Using the app
 
-Choose **语言 / Language** in Overview to follow the system language, use Simplified Chinese, or use English. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
+Choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
 
 **Numeric edits update drafts first.** Expanding an editor, moving a slider, typing a value, selecting a draft preset, or loading the current value does not by itself change system preferences. **Apply** buttons submit changes; **turning on the corresponding feature may also apply the selected custom draft**. Numeric drafts and editing modes are retained between launches.
 

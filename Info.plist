@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleLocalizations</key>
-    <array><string>en</string><string>zh-Hans</string></array>
+    <array><string>en</string><string>es</string><string>zh-Hans</string></array>
     <key>CFBundleDisplayName</key>
     <string>Terminal Settings</string>
     <key>CFBundleExecutable</key>

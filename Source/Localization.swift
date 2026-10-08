@@ -5,19 +5,25 @@ enum AppLanguage: String, CaseIterable, Codable {
     case system
     case simplifiedChinese = "zh-Hans"
     case english = "en"
+    case spanish = "es"
+
+    /// Concrete interface languages, in resource-loading and search order.
+    static let interfaceLanguages: [AppLanguage] = [.simplifiedChinese, .english, .spanish]
 
     func resolved(preferredLanguages: [String] = Locale.preferredLanguages) -> AppLanguage {
         guard self == .system else { return self }
         let first = preferredLanguages.first?.lowercased() ?? ""
-        return first.hasPrefix("zh-hans") || first == "zh-cn" || first == "zh-sg"
-            ? .simplifiedChinese : .english
+        if first.hasPrefix("zh-hans") || first == "zh-cn" || first == "zh-sg" { return .simplifiedChinese }
+        if first == "es" || first.hasPrefix("es-") || first.hasPrefix("es_") { return .spanish }
+        return .english
     }
 
     var nativeName: String {
         switch self {
-        case .system: return "跟随系统 / Follow System"
+        case .system: return "跟随系统 / Follow System / Seguir el sistema"
         case .simplifiedChinese: return "简体中文"
         case .english: return "English"
+        case .spanish: return "Español"
         }
     }
 }
@@ -149,7 +155,7 @@ struct LocalizationResources {
 
     init(bundle: Bundle) {
         var tables: [AppLanguage: [String: String]] = [:]
-        for language in [AppLanguage.english, .simplifiedChinese] {
+        for language in AppLanguage.interfaceLanguages {
             guard let path = bundle.path(forResource: "Localizable", ofType: "strings", inDirectory: nil,
                                          forLocalization: language.rawValue),
                   let data = FileManager.default.contents(atPath: path),

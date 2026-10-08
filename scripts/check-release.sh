@@ -136,7 +136,7 @@ def main():
         "Contents/Resources/AppIcon.icns": "AppIcon.icns",
         "Contents/Resources/LICENSE": "LICENSE",
     }
-    for language in ("en", "zh-Hans"):
+    for language in ("en", "es", "zh-Hans"):
         for filename in ("InfoPlist.strings", "Localizable.strings"):
             relative = "Resources/{}/{}".format(language + ".lproj", filename)
             source_resources["Contents/" + relative] = relative
@@ -224,8 +224,8 @@ def main():
     require(info.get("CFBundleExecutable") == "TerminalSettings", "Unexpected executable name")
     require(info.get("CFBundlePackageType") == "APPL", "Unexpected bundle package type")
     require(info.get("LSMinimumSystemVersion") == "14.0", "Info.plist minimum macOS must be 14.0")
-    require(sorted(info.get("CFBundleLocalizations", [])) == ["en", "zh-Hans"],
-            "Expected exactly the en and zh-Hans bundle localizations")
+    require(sorted(info.get("CFBundleLocalizations", [])) == ["en", "es", "zh-Hans"],
+            "Expected exactly the en, es, and zh-Hans bundle localizations")
     require(info.get("CFBundleIconFile") in ("AppIcon", "AppIcon.icns"), "Unexpected icon name")
     macho = read_macho(executable)
 
@@ -255,7 +255,7 @@ def main():
             "identifier": info["CFBundleIdentifier"],
             "version": info["CFBundleShortVersionString"],
             "build": info["CFBundleVersion"],
-            "localizations": ["en", "zh-Hans"],
+            "localizations": ["en", "es", "zh-Hans"],
             **macho,
         },
         "distribution": {
