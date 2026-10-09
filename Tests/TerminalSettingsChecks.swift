@@ -646,7 +646,9 @@ struct TerminalSettingsChecks {
         try require((L("版本 ") + "1.9.0").rendered(language: .spanish, resources: resources) == "Versión 1.9.0", "西班牙语翻译丢失了前缀尾部空格")
         try require(L("；").rendered(language: .spanish, resources: resources) == "; ", "西班牙语翻译丢失了列表分隔空格")
         for (preferred, expected) in [(["zh-Hans-CN"], AppLanguage.simplifiedChinese), (["en-US"], .english), (["de-DE"], .english), (["zh-Hant-TW"], .english), ([], .english),
-                                      (["es"], .spanish), (["es-ES"], .spanish), (["es-419"], .spanish), (["es-MX", "en-US"], .spanish), (["en-US", "es-ES"], .english), (["et-EE"], .english)] {
+                                      (["es"], .spanish), (["es-ES"], .spanish), (["es-419"], .spanish), (["es-MX", "en-US"], .spanish),
+                                      (["es_MX"], .spanish), (["ES-es"], .spanish), (["es_419"], .spanish),
+                                      (["en-US", "es-ES"], .english), (["fr-FR", "es-ES"], .english), (["et-EE"], .english), (["est-EE"], .english)] {
             try require(AppLanguage.system.resolved(preferredLanguages: preferred) == expected, "跟随系统回退规则错误")
         }
         let state = InMemoryApplicationState()
@@ -689,7 +691,7 @@ struct TerminalSettingsChecks {
         try require(state.writtenKeys.dropFirst(writesBefore).allSatisfy { $0 == AppLanguageStore.preferenceKey }, "语言开关改写了其他应用状态")
         try require(valuesBefore == store.customizationDrafts && errorsBefore == store.customizationInputErrors && modeBefore == store.customizationModes && noticeBefore == store.notice?.message && undoBefore == store.undoSummary, "切换语言丢失了草稿、模式、提示或撤销")
         try require(store.textDrafts["screenshot.name"] == "原文 {0} & $HOME", "用户原文被翻译或插值")
-        try require(commandsBefore == PreferenceCatalog.items.flatMap { store.previewCommands(for: $0).map { $0.1 } }, "中英文实际命令不一致")
+        try require(commandsBefore == PreferenceCatalog.items.flatMap { store.previewCommands(for: $0).map { $0.1 } }, "界面语言切换改变实际命令")
         try require(language.resolved == .spanish && language.text(store.customizationInputErrors[item.id]![parameter.id]!) == "Escribe un número válido", "缓存错误未随西班牙语即时改变")
         language.select(.english)
         try require(language.text(store.customizationInputErrors[item.id]![parameter.id]!) == "Enter a valid number", "缓存错误未随语言即时改变")
@@ -699,11 +701,12 @@ struct TerminalSettingsChecks {
         let message = PreferenceExecutorError.command("defaults read X", LocalizedText(verbatim: diagnostic)).displayMessage
         try require(message.rendered(language: .english, resources: resources) == "Command failed: defaults read X\n" + diagnostic, "原始输出被二次解释或翻译")
         try require(message.rendered(language: .spanish, resources: resources) == "Falló el comando: defaults read X\n" + diagnostic, "西班牙语原始输出被二次解释或翻译")
-        for regionID in ["en_US", "zh_CN", "de_DE"] {
+        for regionID in ["en_US", "zh_CN", "de_DE", "es_ES", "es_MX"] {
             let region = Locale(identifier: regionID)
-            let input = regionID == "de_DE" ? "0,001" : "0.001"
+            let input = "0" + (region.decimalSeparator ?? ".") + "001"
             try require(parameter.displayValue(0.001, region: region).rendered(language: .english, resources: resources) == input, "实际数值参数未使用系统区域格式")
             try require(RegionalNumberInput.parse(input, region: region) == 0.001, "区域小数解析错误")
+            try require(PreferenceValue.float(RegionalNumberInput.parse(input, region: region)!).defaultsArguments == ["-float", "0.001"], "区域输入改变实际命令参数")
             try require(RegionalNumberInput.parse("0", region: region) == 0 && RegionalNumberInput.parse("3600", region: region) == 3600, "整数或特殊 0 被改变")
             try require(RegionalNumberInput.parse("bad", region: region) == nil, "非法输入被接受")
             for raw in ["NaN", "Inf", "-Inf"] {
@@ -713,6 +716,17 @@ struct TerminalSettingsChecks {
             let numericText = L("\(0.001)")
             try require(numericText.rendered(language: .english, resources: resources, region: region) == numericText.rendered(language: .simplifiedChinese, resources: resources, region: region) &&
                         numericText.rendered(language: .spanish, resources: resources, region: region) == numericText.rendered(language: .english, resources: resources, region: region), "界面语言改变了区域数字显示")
+        }
+        let dockSize = PreferenceCatalog.items.first { $0.id == "dock.iconSizes" }!.numericConfiguration!.parameters.first { $0.id == "tileSize" }!
+        try require(dockSize.exactInputError(for: 49) == nil, "合法整点 Dock 尺寸被拒绝")
+        guard let fractionalSizeError = dockSize.exactInputError(for: 48.5) else {
+            throw CheckFailure.failed("非法半点 Dock 尺寸被接受")
+        }
+        let firstNumber = try NSRegularExpression(pattern: "[0-9]+")
+        for language in AppLanguage.interfaceLanguages {
+            let rendered = fractionalSizeError.rendered(language: language, resources: resources)
+            let match = firstNumber.firstMatch(in: rendered, range: NSRange(rendered.startIndex..., in: rendered))!
+            try require((rendered as NSString).substring(with: match.range) == "1", "步进错误提示将 1 点夹限成了 16 点")
         }
         try require(PreferenceValue.float(0.001).defaultsArguments == ["-float", "0.001"], "命令小数格式改变")
         if case .choice(let tooltip) = PreferenceCatalog.items.first(where: { $0.id == "windows.tooltipDelay" })!.control {

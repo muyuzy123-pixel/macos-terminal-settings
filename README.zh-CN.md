@@ -6,6 +6,8 @@
 
 **当前预览版：** `v1.9.0-preview.1` · 应用 **1.9.0（Build 17）** · [MIT 许可](LICENSE)
 
+**语言版本说明：** 西班牙语已包含在当前开发源码中，**尚未包含**于已发布的 `v1.9.0-preview.1` 下载包；该下载包提供英文和简体中文。
+
 当前分发状态与已验证范围见[发布状态](docs/RELEASE_STATUS.md)。
 
 ![简体中文程序坞数值控件：系统当前值为 35 与 37 点，尚未应用的草稿为 48 与 64 点](docs/images/dock-numeric-controls-zh-Hans.png)
@@ -59,7 +61,7 @@
 
 ## 基本使用
 
-在概览中通过 **语言 / Language** 选择跟随系统、简体中文、English 或 Español。进入分类或搜索功能后，先查看作用、兼容说明和命令预览。
+在开发构建的概览中通过 **语言 / Language** 选择跟随系统、简体中文、English 或 Español；已发布的预览包提供英文和简体中文。进入分类或搜索功能后，先查看作用、兼容说明和命令预览。
 
 **数值编辑先更新草稿。** 展开编辑器、拖动滑块、输入数值、选择草稿预设或载入当前值，本身不会更改系统偏好。点击**应用自定义值**、**应用安全／常用预设**等按钮会提交更改；**开启对应功能时，也可能提交当前选中的自定义草稿**。数值草稿与编辑模式会在下次启动时保留。
 
@@ -96,6 +98,8 @@ git clone https://github.com/muyuzy123-pixel/macos-terminal-settings.git
 cd macos-terminal-settings
 zsh build.sh
 ```
+
+PR #1 尚未合并时，若要试用其西语源码，请在克隆后、构建前执行 `git fetch origin feat/spanish-localization` 和 `git switch --detach FETCH_HEAD`。
 
 上述命令构建默认分支的当前源码。如需构建本页预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.1`。检出同一标签不代表生成的 ZIP 校验和必然相同。
 

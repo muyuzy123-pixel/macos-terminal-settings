@@ -50,7 +50,7 @@
 "text.b5a89c580bcb1eb3" = "Eliminar valor explícito";
 "text.a6ae1f2955127cee" = "Elimina el valor explícito del dominio del usuario actual, tanto si lo escribió esta app como otra herramienta o un comando del usuario. Después se aplicará el valor predeterminado efectivo de Apple o el impuesto por la organización.";
 "text.ab2fe0f02f6e9f6f" = "Restaurar valor anterior";
-"text.d1a21704c4f31ff3" = "Restaura el valor exacto o el estado ausente registrado antes de que esta app lo cambiara por primera vez. Los cambios externos no se sobrescribirán.";
+"text.d1a21704c4f31ff3" = "Restaura el valor exacto o el estado ausente registrado antes de que esta app lo cambiara por primera vez. Si se detectan cambios externos, se bloquea la restauración.";
 "text.41271cd00a549ecd" = "Comprobando el estado de administración";
 "text.96e964cd7674c587" = "Administrado por la organización";
 "text.fa061bc7b8c49118" = "Administrado parcialmente";
