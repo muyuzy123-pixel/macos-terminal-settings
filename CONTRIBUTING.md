@@ -9,7 +9,7 @@ Start with a small, reviewable change and describe the user-visible behavior. Fo
 - Managed or unreadable state must fail closed. Recheck state and conflicts immediately before writing.
 - Record recovery data before the first write. Never discard an unreadable journal or overwrite an external third value during undo.
 - Keep executable paths, arguments, preference addresses, and privileged keys constrained by the catalog. Commands run as argument arrays; displayed shell snippets are not an execution interface.
-- Preserve Undo/WAL compatibility, stable feature IDs, and untranslated raw diagnostics. Add matching English and Chinese resources for UI changes.
+- Preserve Undo/WAL compatibility, stable feature IDs, and untranslated raw diagnostics. Add matching English, Chinese, and Spanish resources for UI changes.
 - Changing permissions, privileged execution, data schemas, deployment targets, or recovery semantics requires an explicit design review.
 
 ## Build and checks

@@ -289,7 +289,7 @@ struct LanguageSettingsRow: View {
                     }
                 }
                 .labelsHidden()
-                .frame(maxWidth: 240)
+                .frame(maxWidth: 300)
                 .accessibilityLabel(language.text(L("语言 / Language")))
                 .accessibilityIdentifier("overview.language")
             }

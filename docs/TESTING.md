@@ -10,7 +10,7 @@
 
 ## UI and device acceptance
 
-For changes to views, verify both languages, minimum window size, search, focus, drafts, expanded controls, invalid input, and Accessibility identifier uniqueness. Use a QA copy with a distinct bundle identifier so existing drafts and Undo/WAL are not shared. Main feature toggles, Apply, Restore, Undo, and advanced switches are real mutation paths.
+For changes to views, verify every supported interface language, minimum window size, search, focus, drafts, expanded controls, invalid input, and Accessibility identifier uniqueness. Use a QA copy with a distinct bundle identifier so existing drafts and Undo/WAL are not shared. Main feature toggles, Apply, Restore, Undo, and advanced switches are real mutation paths.
 
 Treat visual effects, managed-profile behavior, physical gestures, actual privileged writes, and old-system compatibility as separate device checks. Do not substitute compilation, a successful database read-back, or automated click timing for those checks.
 

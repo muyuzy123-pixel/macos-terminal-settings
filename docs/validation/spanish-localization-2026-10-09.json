@@ -1,0 +1,136 @@
+{
+  "date": "2026-10-09",
+  "base_pr_commit": "4ea00494e34abb8762382a23a37287e78fb6c28b",
+  "environment": {
+    "macos": "26.6.2",
+    "build": "25G83",
+    "architecture": "arm64",
+    "swift": "6.3.3",
+    "sdk": "26.5",
+    "deployment_target": "14.0"
+  },
+  "automated_checks": {
+    "contracts": true,
+    "full_isolated_integration": true,
+    "production_build": true,
+    "independent_archive": true,
+    "resource_keys_per_language": 509,
+    "localizations": [
+      "en",
+      "es",
+      "zh-Hans"
+    ],
+    "numeric_regions": [
+      "en_US",
+      "zh_CN",
+      "de_DE",
+      "es_ES",
+      "es_MX"
+    ],
+    "language_resolution_added_cases": [
+      "es_MX",
+      "ES-es",
+      "es_419",
+      "fr-FR before es-ES",
+      "est-EE"
+    ],
+    "dock_step_regression": {
+      "valid_49_accepted": true,
+      "fractional_48_5_rejected": true,
+      "displayed_step_in_all_languages": 1
+    }
+  },
+  "gui": {
+    "capture_files": [
+      {
+        "name": "spanish-overview-min.capture",
+        "format": "JPEG",
+        "pixels": [
+          1640,
+          1344
+        ],
+        "sha256": "24101da953e4e94e174aa8f7fa88c44db2f4506265bfdc0f0979c32fea9b9152"
+      },
+      {
+        "name": "system-min.capture",
+        "format": "JPEG",
+        "pixels": [
+          1640,
+          1344
+        ],
+        "sha256": "74e59137d8ebefa8194595c4852ba5663f33fc21177325ec715d18bd7e86fb7b"
+      },
+      {
+        "name": "spanish-search-default.capture",
+        "format": "JPEG",
+        "pixels": [
+          2120,
+          1520
+        ],
+        "sha256": "03f3a2b92457394009ec3156c4e6f526cd6dfa251489c4c8ebdfe801b6d17216"
+      }
+    ],
+    "focused_language_cycle": [
+      "es",
+      "en",
+      "zh-Hans",
+      "es"
+    ],
+    "invalid_text_preserved": "48.5",
+    "last_valid_drafts": [
+      48,
+      64
+    ],
+    "apply_disabled_during_invalid_input": true,
+    "ax_identifiers_unique": true,
+    "language_persisted_after_restart": "es",
+    "valid_input_49_accepted": true,
+    "spanish_search_result_count": 2,
+    "technical_key_search_result_count": 1,
+    "foldout_expand_collapse": true
+  },
+  "qa_isolation": {
+    "unique_bundle_id": true,
+    "production_views_models_and_resources_identical": true,
+    "qa_only_menu_for_direct_language_switch_and_window_sizing": true,
+    "minimum_outer_window_points": [
+      820,
+      672
+    ],
+    "default_outer_window_points": [
+      1060,
+      760
+    ],
+    "production_writes_restore_undo_admin_actions_exercised": false,
+    "qa_state_cleaned": true
+  },
+  "production_audit": {
+    "preference_addresses": 46,
+    "unchanged": [
+      "environment",
+      "preferences",
+      "power",
+      "appState",
+      "appFiles",
+      "residues"
+    ]
+  },
+  "translation_review": {
+    "kind": "Codex semantic comparison with source English/Chinese and behavior",
+    "critical_operations_reviewed": [
+      "apply vs draft editing",
+      "delete override vs restore baseline vs undo",
+      "discard record without preference writes",
+      "managed preferences remain read-only",
+      "authorized helper timeout retains journal and locks writes",
+      "advanced off writes 0; undo restores per-source prior values",
+      "experimental/unverified effect limits"
+    ],
+    "recovery_conflict_wording_corrected": true,
+    "human_native_speaker_review": false
+  },
+  "unreleased_candidate_archive_sha256": "43ad0723b84185d3b93052008347a8b608b5c6e20679359d75917417409510bc",
+  "published_preview": "v1.9.0-preview.1",
+  "published_archive_sha256": "9c1e3f429ccc4012c1c52854edb5c5706c7c4f7f9819f65809c9d9b549986c52",
+  "published_assets_replaced": false
+}

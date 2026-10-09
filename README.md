@@ -6,6 +6,8 @@ Bring macOS preferences usually adjusted with Terminal commands into a native in
 
 **Current preview:** `v1.9.0-preview.1` · App **1.9.0 (Build 17)** · [MIT license](LICENSE)
 
+**Language availability:** Spanish is included in the current development source and is **not included** in the released `v1.9.0-preview.1` download, which supports English and Simplified Chinese.
+
 See [release status](docs/RELEASE_STATUS.md) for distribution status and verified scope.
 
 ![English Dock numeric controls showing current values of 35 and 37 points and unapplied drafts of 48 and 64 points](docs/images/dock-numeric-controls-en.png)
@@ -29,7 +31,7 @@ The app includes **40 settings across 8 categories**, with **7 numeric control g
 
 - **See what will change.** View current values, descriptions, risk labels, sources, and equivalent commands.
 - **Edit precise values.** Keep numeric drafts separate from the current system value; review the submission paths described below.
-- **Work in either language.** Switch between English and Simplified Chinese immediately; search in either language or by preference key. Numbers follow the system region.
+- **Work in your language.** Switch between English, Simplified Chinese, and Spanish immediately; search in any of them or by preference key. Numbers follow the system region.
 - **Undo and recover.** The app records values before changing them and checks management restrictions and external edits before restoring them.
 
 The catalog distinguishes **34 Terminal-only settings**, **4 System Settings enhancements**, and **2 mirrors**. Some preferences are undocumented or experimental. Availability and effects vary by macOS version; a successful write/read-back confirms the stored value, not its visible effect.
@@ -59,7 +61,7 @@ This preview is **not notarized**, so macOS may block it. Review [Apple's guidan
 
 ## Using the app
 
-Choose **语言 / Language** in Overview to follow the system language, use Simplified Chinese, or use English. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
+In a development build, choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. The released preview offers English and Simplified Chinese. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
 
 **Numeric edits update drafts first.** Expanding an editor, moving a slider, typing a value, selecting a draft preset, or loading the current value does not by itself change system preferences. **Apply** buttons submit changes; **turning on the corresponding feature may also apply the selected custom draft**. Numeric drafts and editing modes are retained between launches.
 
@@ -96,6 +98,8 @@ git clone https://github.com/muyuzy123-pixel/macos-terminal-settings.git
 cd macos-terminal-settings
 zsh build.sh
 ```
+
+While PR #1 remains unmerged, try its Spanish source by running `git fetch origin feat/spanish-localization` and `git switch --detach FETCH_HEAD` after cloning and before building.
 
 These commands build the current default branch. To build the source for this preview instead, run `git switch --detach v1.9.0-preview.1` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
 

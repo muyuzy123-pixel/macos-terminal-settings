@@ -97,7 +97,7 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$MODULE_CACHE"
 
 cp "$ROOT/Info.plist" "$CONTENTS/Info.plist"
 cp "$ROOT/LICENSE" "$CONTENTS/Resources/LICENSE"
-cp -R "$ROOT/Resources/en.lproj" "$ROOT/Resources/zh-Hans.lproj" "$CONTENTS/Resources/"
+cp -R "$ROOT/Resources/en.lproj" "$ROOT/Resources/es.lproj" "$ROOT/Resources/zh-Hans.lproj" "$CONTENTS/Resources/"
 
 if [[ -f "$ROOT/AppIcon.icns" ]]; then
   cp "$ROOT/AppIcon.icns" "$CONTENTS/Resources/AppIcon.icns"
