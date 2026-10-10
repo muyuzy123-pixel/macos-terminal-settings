@@ -2,11 +2,11 @@
 
 把通常需要终端命令调整的 macOS 系统偏好，集中到带有作用说明、命令预览和恢复支持的原生界面。它管理系统偏好，不是 Terminal.app 自身的设置编辑器。
 
-[English](README.md) · [下载预览版](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md)
+[English](README.md) · [下载预览版](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md)
 
-**当前预览版：** `v1.9.0-preview.1` · 应用 **1.9.0（Build 17）** · [MIT 许可](LICENSE)
+**当前预览版：** `v1.9.0-preview.2` · 应用 **1.9.0（Build 18）** · [MIT 许可](LICENSE)
 
-**语言版本说明：** 西班牙语已包含在当前开发源码中，**尚未包含**于已发布的 `v1.9.0-preview.1` 下载包；该下载包提供英文和简体中文。
+**语言版本说明：** 预览下载包已包含英文、简体中文和西班牙语。**西班牙语译文尚未经母语者审阅。**
 
 当前分发状态与已验证范围见[发布状态](docs/RELEASE_STATUS.md)。
 
@@ -45,9 +45,9 @@
 | 本机验证环境 | macOS 26.6.2；尚未完成真实 macOS 14 设备验收 |
 | 分发状态 | 预览版，Hardened Runtime + ad-hoc 签名；无 Developer ID 签名与 Apple 公证 |
 
-本轮本地验证覆盖契约检查、隔离集成测试、构建和归档核验，不代表所有界面效果或真实管理员写入均已完成实机验收；完整范围见[测试说明](docs/TESTING.md)和[发布状态](docs/RELEASE_STATUS.md)。
+本版本已通过契约、构建、归档和隔离界面冒烟检查；此前的隔离集成测试及更完整的定向界面验收结果在[发布状态](docs/RELEASE_STATUS.md)中单独记录。这些检查不代表所有界面效果或真实管理员写入均已完成实机验收；完整范围见[测试说明](docs/TESTING.md)。
 
-1. 打开[预览版发布页](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1)，从 **Assets** 下载 `TerminalSettings.zip` 和 `SHA256SUMS`。发布页另附 `release-manifest.json`，记录构建与核验信息。
+1. 打开[预览版发布页](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2)，从 **Assets** 下载 `TerminalSettings.zip` 和 `SHA256SUMS`。发布页另附 `release-manifest.json`，记录构建与核验信息。
 2. 在这两个文件所在的文件夹中校验安装包：
 
    ```sh
@@ -61,7 +61,7 @@
 
 ## 基本使用
 
-在开发构建的概览中通过 **语言 / Language** 选择跟随系统、简体中文、English 或 Español；已发布的预览包提供英文和简体中文。进入分类或搜索功能后，先查看作用、兼容说明和命令预览。
+在概览中通过 **语言 / Language**（西语界面中显示为 **Idioma / Language**）选择跟随系统、简体中文、English 或 Español。进入分类或搜索功能后，先查看作用、兼容说明和命令预览。
 
 **数值编辑先更新草稿。** 展开编辑器、拖动滑块、输入数值、选择草稿预设或载入当前值，本身不会更改系统偏好。点击**应用自定义值**、**应用安全／常用预设**等按钮会提交更改；**开启对应功能时，也可能提交当前选中的自定义草稿**。数值草稿与编辑模式会在下次启动时保留。
 
@@ -99,7 +99,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-上述命令构建默认分支（`main`）的当前源码，其中已包含西班牙语。如需构建已发布的英文和简体中文预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.1`。检出同一标签不代表生成的 ZIP 校验和必然相同。
+上述命令构建默认分支（`main`）的当前源码。如需构建当前三语预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.2`。检出同一标签不代表生成的 ZIP 校验和必然相同。
 
 构建生成 `TerminalSettings.app` 和 `TerminalSettings.zip`。构建失败时先核对上述工具链要求和[贡献说明](CONTRIBUTING.md)，反馈时附上已脱敏的错误与工具链版本。运行契约测试与独立解包核验：
 

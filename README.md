@@ -2,11 +2,11 @@
 
 Bring macOS preferences usually adjusted with Terminal commands into a native interface with explanations, command previews, and recovery options. This app manages system preferences; it is not a settings editor for Terminal.app.
 
-[简体中文](README.zh-CN.md) · [Download preview](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+[简体中文](README.zh-CN.md) · [Download preview](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-**Current preview:** `v1.9.0-preview.1` · App **1.9.0 (Build 17)** · [MIT license](LICENSE)
+**Current preview:** `v1.9.0-preview.2` · App **1.9.0 (Build 18)** · [MIT license](LICENSE)
 
-**Language availability:** Spanish is included in the current development source and is **not included** in the released `v1.9.0-preview.1` download, which supports English and Simplified Chinese.
+**Languages:** The preview download includes English, Simplified Chinese, and Spanish. **Spanish translations have not yet been reviewed by a native speaker.**
 
 See [release status](docs/RELEASE_STATUS.md) for distribution status and verified scope.
 
@@ -45,9 +45,9 @@ The catalog distinguishes **34 Terminal-only settings**, **4 System Settings enh
 | Local validation | macOS 26.6.2; real-device macOS 14 acceptance is still outstanding |
 | Distribution | Preview build, ad-hoc signed with Hardened Runtime; no Developer ID or notarization |
 
-Local checks cover contracts, isolated integration, builds, and archive verification. They do not establish that all UI effects or real administrator writes have been accepted on a device; see [testing](docs/TESTING.md) and [release status](docs/RELEASE_STATUS.md).
+This release passed contract, build, archive, and isolated GUI smoke checks. Earlier isolated integration and broader directed GUI results are recorded separately in [release status](docs/RELEASE_STATUS.md). These checks do not establish that all UI effects or real administrator writes have been accepted on a device; see [testing](docs/TESTING.md).
 
-1. Open the [preview release](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.1) and download `TerminalSettings.zip` and `SHA256SUMS` from **Assets**. The release also includes `release-manifest.json` with build and verification details.
+1. Open the [preview release](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2) and download `TerminalSettings.zip` and `SHA256SUMS` from **Assets**. The release also includes `release-manifest.json` with build and verification details.
 2. In the folder containing both downloaded files, verify the archive:
 
    ```sh
@@ -61,7 +61,7 @@ This preview is **not notarized**, so macOS may block it. Review [Apple's guidan
 
 ## Using the app
 
-In a development build, choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. The released preview offers English and Simplified Chinese. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
+Choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
 
 **Numeric edits update drafts first.** Expanding an editor, moving a slider, typing a value, selecting a draft preset, or loading the current value does not by itself change system preferences. **Apply** buttons submit changes; **turning on the corresponding feature may also apply the selected custom draft**. Numeric drafts and editing modes are retained between launches.
 
@@ -99,7 +99,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-These commands build the current default branch (`main`), which includes Spanish. To build the source for the released English and Simplified Chinese preview instead, run `git switch --detach v1.9.0-preview.1` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
+These commands build the current default branch (`main`). To build the source for the current three-language preview instead, run `git switch --detach v1.9.0-preview.2` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
 
 The build creates `TerminalSettings.app` and `TerminalSettings.zip`. If it fails, check the toolchain requirements above and the [contributor guidance](CONTRIBUTING.md); include the error and toolchain version in a redacted bug report. To check contracts and independently verify the packaged archive:
 
