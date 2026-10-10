@@ -20,7 +20,7 @@ terminal_settings_toolchain verify
 mkdir -p "$BUILD" "$MODULE_CACHE"
 TEST_RESOURCES="$BUILD/LocalizationTests.bundle"
 mkdir -p "$TEST_RESOURCES/Contents/Resources"
-cp -R "$ROOT/Resources/en.lproj" "$ROOT/Resources/zh-Hans.lproj" "$TEST_RESOURCES/Contents/Resources/"
+cp -R "$ROOT/Resources/en.lproj" "$ROOT/Resources/es.lproj" "$ROOT/Resources/zh-Hans.lproj" "$TEST_RESOURCES/Contents/Resources/"
 cp "$ROOT/Info.plist" "$TEST_RESOURCES/Contents/Info.plist"
 export TERMINAL_SETTINGS_TEST_RESOURCE_BUNDLE="$TEST_RESOURCES"
 

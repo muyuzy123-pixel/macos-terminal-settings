@@ -550,6 +550,7 @@ struct TerminalSettingsChecks {
         try checkRecordingPrecisionEnhancements()
         try checkPrivilegedTimeoutRetainsJournal(language: .simplifiedChinese)
         try checkPrivilegedTimeoutRetainsJournal(language: .english)
+        try checkPrivilegedTimeoutRetainsJournal(language: .spanish)
         try checkUnreadableJournalFailClosedContract()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
@@ -583,6 +584,7 @@ struct TerminalSettingsChecks {
         let chineseKeys = resources.keys(for: .simplifiedChinese)
         try require(chineseKeys.count >= 500 && chineseKeys == resources.keys(for: .english),
                     "中英文资源键不完整或不一致")
+        try require(resources.keys(for: .spanish) == chineseKeys, "西班牙语资源键不完整或不一致")
         let placeholderPattern = try NSRegularExpression(pattern: "\\{[0-9]+\\}")
         func placeholders(_ text: String) -> [String] {
             placeholderPattern.matches(in: text, range: NSRange(text.startIndex..., in: text))
@@ -591,10 +593,11 @@ struct TerminalSettingsChecks {
         for key in chineseKeys {
             let zh = resources.string(key: key, language: .simplifiedChinese)!
             let en = resources.string(key: key, language: .english)!
-            try require((!zh.isEmpty && !en.isEmpty) || key == LocalizedText.key(for: ""), "存在意外空翻译")
-            try require(placeholders(zh) == placeholders(en), "翻译占位符不一致：\(key)")
+            let es = resources.string(key: key, language: .spanish)!
+            try require((!zh.isEmpty && !en.isEmpty && !es.isEmpty) || key == LocalizedText.key(for: ""), "存在意外空翻译")
+            try require(placeholders(zh) == placeholders(en) && placeholders(es) == placeholders(en), "翻译占位符不一致：\(key)")
         }
-        for language in [AppLanguage.simplifiedChinese, .english] {
+        for language in AppLanguage.interfaceLanguages {
             let url = bundle.resourceURL!.appendingPathComponent(language.rawValue + ".lproj/Localizable.strings")
             let contents = try String(contentsOf: url, encoding: .utf8)
             let lines = contents.split(separator: "\n").filter { $0.hasPrefix("\"text.") }
@@ -602,10 +605,12 @@ struct TerminalSettingsChecks {
         }
         let han = try NSRegularExpression(pattern: "[\\x{3400}-\\x{9FFF}]")
         func checkText(_ text: LocalizedText) throws {
-            let en = text.rendered(language: .english, resources: resources)
-            try require(han.firstMatch(in: en, range: NSRange(en.startIndex..., in: en)) == nil,
-                        "英文显示仍包含未翻译汉字：\(en)")
-            try require(!en.contains("LocalizedText(") && !en.contains("Part.message"), "界面泄漏了文本模型描述")
+            for language in [AppLanguage.english, .spanish] {
+                let rendered = text.rendered(language: language, resources: resources)
+                try require(han.firstMatch(in: rendered, range: NSRange(rendered.startIndex..., in: rendered)) == nil,
+                            "\(language.rawValue) 显示仍包含未翻译汉字：\(rendered)")
+                try require(!rendered.contains("LocalizedText(") && !rendered.contains("Part.message"), "界面泄漏了文本模型描述")
+            }
         }
         for category in SettingsCategory.allCases {
             try checkText(category.title); try checkText(category.subtitle)
@@ -637,7 +642,13 @@ struct TerminalSettingsChecks {
         try require((L("版本 ") + "1.9.0").rendered(language: .english, resources: resources) == "Version 1.9.0", "翻译丢失了前缀尾部空格")
         try require(L("；").rendered(language: .english, resources: resources) == "; ", "翻译丢失了列表分隔空格")
         try require(SettingsCategory.overview.title.rendered(language: .simplifiedChinese, resources: resources) == "概览", "原有中文概览改变")
-        for (preferred, expected) in [(["zh-Hans-CN"], AppLanguage.simplifiedChinese), (["en-US"], .english), (["de-DE"], .english), (["zh-Hant-TW"], .english), ([], .english)] {
+        try require(SettingsCategory.overview.title.rendered(language: .spanish, resources: resources) == "Resumen", "西班牙语概览翻译错误")
+        try require((L("版本 ") + "1.9.0").rendered(language: .spanish, resources: resources) == "Versión 1.9.0", "西班牙语翻译丢失了前缀尾部空格")
+        try require(L("；").rendered(language: .spanish, resources: resources) == "; ", "西班牙语翻译丢失了列表分隔空格")
+        for (preferred, expected) in [(["zh-Hans-CN"], AppLanguage.simplifiedChinese), (["en-US"], .english), (["de-DE"], .english), (["zh-Hant-TW"], .english), ([], .english),
+                                      (["es"], .spanish), (["es-ES"], .spanish), (["es-419"], .spanish), (["es-MX", "en-US"], .spanish),
+                                      (["es_MX"], .spanish), (["ES-es"], .spanish), (["es_419"], .spanish),
+                                      (["en-US", "es-ES"], .english), (["fr-FR", "es-ES"], .english), (["et-EE"], .english), (["est-EE"], .english)] {
             try require(AppLanguage.system.resolved(preferredLanguages: preferred) == expected, "跟随系统回退规则错误")
         }
         let state = InMemoryApplicationState()
@@ -653,6 +664,7 @@ struct TerminalSettingsChecks {
         let item = PreferenceCatalog.items.first { $0.id == "dock.fastAnimation" }!
         let disclosure = PreferenceDisplayText.disclosureLabel(title: item.title, action: L("展开详情与命令"))
         try require(disclosure.rendered(language: .english, resources: resources) == "Try a shorter Dock auto-hide animation: Show details and commands", "折叠按钮 AX 标签泄漏文本模型或未翻译")
+        try require(disclosure.rendered(language: .spanish, resources: resources) == "Probar una animación más corta de ocultación automática del Dock: Mostrar detalles y comandos", "西班牙语折叠按钮 AX 标签未翻译")
         let parameter = item.numericConfiguration!.parameters[0]
         let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("TerminalSettingsLanguage-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -674,23 +686,27 @@ struct TerminalSettingsChecks {
         let commandsBefore = PreferenceCatalog.items.flatMap { store.previewCommands(for: $0).map { $0.1 } }
         let modeBefore = store.customizationModes, noticeBefore = store.notice?.message, undoBefore = store.undoSummary
         let checkpoint = log.checkpoint(), writesBefore = state.writtenKeys.count
-        for index in 0..<100 { language.select(index.isMultiple(of: 2) ? .simplifiedChinese : .english) }
+        for index in 0..<99 { language.select(AppLanguage.interfaceLanguages[index % AppLanguage.interfaceLanguages.count]) }
         try require(log.events(since: checkpoint).isEmpty, "切换语言触发了读取、写入、进程、授权或日志操作")
         try require(state.writtenKeys.dropFirst(writesBefore).allSatisfy { $0 == AppLanguageStore.preferenceKey }, "语言开关改写了其他应用状态")
         try require(valuesBefore == store.customizationDrafts && errorsBefore == store.customizationInputErrors && modeBefore == store.customizationModes && noticeBefore == store.notice?.message && undoBefore == store.undoSummary, "切换语言丢失了草稿、模式、提示或撤销")
         try require(store.textDrafts["screenshot.name"] == "原文 {0} & $HOME", "用户原文被翻译或插值")
-        try require(commandsBefore == PreferenceCatalog.items.flatMap { store.previewCommands(for: $0).map { $0.1 } }, "中英文实际命令不一致")
+        try require(commandsBefore == PreferenceCatalog.items.flatMap { store.previewCommands(for: $0).map { $0.1 } }, "界面语言切换改变实际命令")
+        try require(language.resolved == .spanish && language.text(store.customizationInputErrors[item.id]![parameter.id]!) == "Escribe un número válido", "缓存错误未随西班牙语即时改变")
+        language.select(.english)
         try require(language.text(store.customizationInputErrors[item.id]![parameter.id]!) == "Enter a valid number", "缓存错误未随语言即时改变")
-        try require(PreferenceCatalog.search("Dock", resources: resources).contains { $0.id == item.id } && PreferenceCatalog.search("程序坞", resources: resources).contains { $0.id == item.id }, "搜索未同时索引中英文")
+        try require(PreferenceCatalog.search("Dock", resources: resources).contains { $0.id == item.id } && PreferenceCatalog.search("程序坞", resources: resources).contains { $0.id == item.id } && PreferenceCatalog.search("ocultación automática", resources: resources).contains { $0.id == item.id }, "搜索未同时索引中英西文")
         try require(PreferenceCatalog.search("autohide-time-modifier", resources: resources).map(\.id) == [item.id], "技术键搜索有遗漏或重复")
         let diagnostic = "原始诊断 {0} defaults $HOME"
         let message = PreferenceExecutorError.command("defaults read X", LocalizedText(verbatim: diagnostic)).displayMessage
         try require(message.rendered(language: .english, resources: resources) == "Command failed: defaults read X\n" + diagnostic, "原始输出被二次解释或翻译")
-        for regionID in ["en_US", "zh_CN", "de_DE"] {
+        try require(message.rendered(language: .spanish, resources: resources) == "Falló el comando: defaults read X\n" + diagnostic, "西班牙语原始输出被二次解释或翻译")
+        for regionID in ["en_US", "zh_CN", "de_DE", "es_ES", "es_MX"] {
             let region = Locale(identifier: regionID)
-            let input = regionID == "de_DE" ? "0,001" : "0.001"
+            let input = "0" + (region.decimalSeparator ?? ".") + "001"
             try require(parameter.displayValue(0.001, region: region).rendered(language: .english, resources: resources) == input, "实际数值参数未使用系统区域格式")
             try require(RegionalNumberInput.parse(input, region: region) == 0.001, "区域小数解析错误")
+            try require(PreferenceValue.float(RegionalNumberInput.parse(input, region: region)!).defaultsArguments == ["-float", "0.001"], "区域输入改变实际命令参数")
             try require(RegionalNumberInput.parse("0", region: region) == 0 && RegionalNumberInput.parse("3600", region: region) == 3600, "整数或特殊 0 被改变")
             try require(RegionalNumberInput.parse("bad", region: region) == nil, "非法输入被接受")
             for raw in ["NaN", "Inf", "-Inf"] {
@@ -698,7 +714,19 @@ struct TerminalSettingsChecks {
                 try require(parsed == nil || parameter.exactInputError(for: parsed!) != nil, "非有限值被接受")
             }
             let numericText = L("\(0.001)")
-            try require(numericText.rendered(language: .english, resources: resources, region: region) == numericText.rendered(language: .simplifiedChinese, resources: resources, region: region), "界面语言改变了区域数字显示")
+            try require(numericText.rendered(language: .english, resources: resources, region: region) == numericText.rendered(language: .simplifiedChinese, resources: resources, region: region) &&
+                        numericText.rendered(language: .spanish, resources: resources, region: region) == numericText.rendered(language: .english, resources: resources, region: region), "界面语言改变了区域数字显示")
+        }
+        let dockSize = PreferenceCatalog.items.first { $0.id == "dock.iconSizes" }!.numericConfiguration!.parameters.first { $0.id == "tileSize" }!
+        try require(dockSize.exactInputError(for: 49) == nil, "合法整点 Dock 尺寸被拒绝")
+        guard let fractionalSizeError = dockSize.exactInputError(for: 48.5) else {
+            throw CheckFailure.failed("非法半点 Dock 尺寸被接受")
+        }
+        let firstNumber = try NSRegularExpression(pattern: "[0-9]+")
+        for language in AppLanguage.interfaceLanguages {
+            let rendered = fractionalSizeError.rendered(language: language, resources: resources)
+            let match = firstNumber.firstMatch(in: rendered, range: NSRange(rendered.startIndex..., in: rendered))!
+            try require((rendered as NSString).substring(with: match.range) == "1", "步进错误提示将 1 点夹限成了 16 点")
         }
         try require(PreferenceValue.float(0.001).defaultsArguments == ["-float", "0.001"], "命令小数格式改变")
         if case .choice(let tooltip) = PreferenceCatalog.items.first(where: { $0.id == "windows.tooltipDelay" })!.control {
@@ -714,6 +742,7 @@ struct TerminalSettingsChecks {
         let oldData = try encoder.encode(old), newData = try encoder.encode(new)
         try require(old.localizedTitle(resources: resources).rendered(language: .english, resources: resources) == old.title, "旧标题被改写")
         try require(new.localizedTitle(resources: resources).rendered(language: .english, resources: resources) == "Applied custom values for “Try a shorter Dock auto-hide animation”", "新记录没有延迟翻译")
+        try require(new.localizedTitle(resources: resources).rendered(language: .spanish, resources: resources) == "Se aplicaron valores personalizados a “Probar una animación más corta de ocultación automática del Dock”", "新记录没有延迟翻译为西班牙语")
         var json = try JSONSerialization.jsonObject(with: newData) as! [String: Any]
         json["displayAction"] = ["unknown": true]
         let damaged = try decoder.decode(UndoRecord.self, from: JSONSerialization.data(withJSONObject: json))
@@ -726,7 +755,7 @@ struct TerminalSettingsChecks {
         struct LegacyUndo: Decodable { let title: String; let before: [PreferenceSnapshot]; let after: [PreferenceSnapshot] }
         let legacy = try decoder.decode(LegacyUndo.self, from: newData)
         try require(legacy.title == new.title && legacy.before == old.before && legacy.after == old.after, "新增显示字段破坏旧读取器")
-        print("Localization contracts passed: \(chineseKeys.count) resource keys; bilingual catalog, zero-effect switching, region formats, legacy undo, and verbatim diagnostics")
+        print("Localization contracts passed: \(chineseKeys.count) resource keys; trilingual catalog, zero-effect switching, region formats, legacy undo, and verbatim diagnostics")
     }
 
     private static func checkCatalog() throws {
@@ -2059,7 +2088,13 @@ struct TerminalSettingsChecks {
         let retainedRecord = try journal.read(from: pendingURL)
         let resources = try localizationTestResources()
         let rendered = store.alert!.message.rendered(language: language, resources: resources)
-        try require(rendered.contains(language == .english ? "recovery journal" : "恢复日志"),
+        let expectedPhrase: String
+        switch language {
+        case .english: expectedPhrase = "recovery journal"
+        case .spanish: expectedPhrase = "diario de recuperación"
+        default: expectedPhrase = "恢复日志"
+        }
+        try require(rendered.contains(expectedPhrase),
                     "管理员超时错误没有按所选语言显示")
         try require(retainedRecord?.powerBefore?.first?.key == "ttyskeepawake" &&
                     !events.contains { if case .journalRemove = $0 { return true }; return false },

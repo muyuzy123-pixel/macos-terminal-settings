@@ -7,7 +7,7 @@ enum PreferenceCatalog {
             let displayFields = [item.title, item.detail, item.source.detailLabel,
                                  item.category.title, item.evidence.title] +
                 [item.source.systemSettings?.path, item.stability.note].compactMap { $0 }
-            return [AppLanguage.simplifiedChinese, .english].contains { language in
+            return AppLanguage.interfaceLanguages.contains { language in
                 displayFields.contains {
                     $0.rendered(language: language, resources: resources).localizedCaseInsensitiveContains(query)
                 }

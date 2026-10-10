@@ -497,19 +497,24 @@ struct NumericPreferenceParameter: Identifiable {
         let normalizedValue = normalized(value)
         let tolerance = max(step / 10_000, 0.000_000_1)
         guard abs(normalizedValue - value) <= tolerance else {
-            return L("请输入 \(displayValue(step)) 的整数倍")
+            return L("请输入 \(formattedValue(step, region: .autoupdatingCurrent)) 的整数倍")
         }
         return nil
     }
 
     func displayValue(_ value: Double, region: Locale = .autoupdatingCurrent) -> LocalizedText {
         if let specialValue = specialValue(for: value) { return specialValue.title }
-        let normalizedValue = normalized(value)
+        return formattedValue(normalized(value), region: region)
+    }
+
+    // A step is a measurement, not an editable value. Formatting it must not
+    // clamp it to the parameter's range (for example, Dock step 1 vs. min 16).
+    private func formattedValue(_ value: Double, region: Locale) -> LocalizedText {
         let number: String
         if precision == 0 {
-            number = String(Int(normalizedValue.rounded()))
+            number = String(Int(value.rounded()))
         } else {
-            number = String(format: "%.*f", locale: region, precision, normalizedValue)
+            number = String(format: "%.*f", locale: region, precision, value)
         }
         return unit.isEmpty ? LocalizedText(verbatim: number) : L("\(number) \(unit)")
     }
