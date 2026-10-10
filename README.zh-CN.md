@@ -99,9 +99,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-PR #1 尚未合并时，若要试用其西语源码，请在克隆后、构建前执行 `git fetch origin feat/spanish-localization` 和 `git switch --detach FETCH_HEAD`。
-
-上述命令构建默认分支的当前源码。如需构建本页预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.1`。检出同一标签不代表生成的 ZIP 校验和必然相同。
+上述命令构建默认分支（`main`）的当前源码，其中已包含西班牙语。如需构建已发布的英文和简体中文预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.1`。检出同一标签不代表生成的 ZIP 校验和必然相同。
 
 构建生成 `TerminalSettings.app` 和 `TerminalSettings.zip`。构建失败时先核对上述工具链要求和[贡献说明](CONTRIBUTING.md)，反馈时附上已脱敏的错误与工具链版本。运行契约测试与独立解包核验：
 

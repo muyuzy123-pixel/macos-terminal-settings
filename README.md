@@ -99,9 +99,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-While PR #1 remains unmerged, try its Spanish source by running `git fetch origin feat/spanish-localization` and `git switch --detach FETCH_HEAD` after cloning and before building.
-
-These commands build the current default branch. To build the source for this preview instead, run `git switch --detach v1.9.0-preview.1` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
+These commands build the current default branch (`main`), which includes Spanish. To build the source for the released English and Simplified Chinese preview instead, run `git switch --detach v1.9.0-preview.1` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
 
 The build creates `TerminalSettings.app` and `TerminalSettings.zip`. If it fails, check the toolchain requirements above and the [contributor guidance](CONTRIBUTING.md); include the error and toolchain version in a redacted bug report. To check contracts and independently verify the packaged archive:
 
