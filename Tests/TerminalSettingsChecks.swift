@@ -414,6 +414,32 @@ private final class RecordingJournal: PreferenceTransactionJournaling, @unchecke
     }
 }
 
+/// Persists and reads normally; `clears` decides whether removal succeeds, so
+/// a completed write can leave its recovery journal behind.
+private final class StickyJournal: PreferenceTransactionJournaling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var records: [URL: UndoRecord] = [:]
+    private let clears: Bool
+
+    init(clears: Bool) { self.clears = clears }
+
+    func persist(_ record: UndoRecord, to url: URL) throws {
+        lock.lock(); records[url] = record; lock.unlock()
+    }
+
+    func read(from url: URL) throws -> UndoRecord? {
+        lock.lock(); defer { lock.unlock() }
+        return records[url]
+    }
+
+    @discardableResult
+    func remove(at url: URL) -> Bool {
+        guard clears else { return false }
+        lock.lock(); records.removeValue(forKey: url); lock.unlock()
+        return true
+    }
+}
+
 /// A helper can time out after accepting a write. Successful compensation does
 /// not prove that helper has exited, so this double verifies WAL retention.
 private final class TimedOutPowerExecutor: PowerSettingsExecuting, @unchecked Sendable {
@@ -554,6 +580,8 @@ struct TerminalSettingsChecks {
         try checkPrivilegedTimeoutRetainsJournal(language: .spanish)
         try checkUnreadableJournalFailClosedContract()
         try checkRefreshKeepsDisplayAndTextDrafts()
+        try checkNoticeKinds()
+        try checkUnverifiedSystemMessage()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -2578,6 +2606,61 @@ struct TerminalSettingsChecks {
         store.refreshAll()
         try waitUntil("外部修改后的刷新未完成") { !store.isWorking }
         try require(store.textDrafts[nameItem.id] == "外部前缀", "未编辑的文字草稿没有跟随外部新值")
+    }
+
+    /// A partial outcome must not look like a plain confirmation, and a
+    /// delayed dismissal must only remove the notice it was scheduled for.
+    @MainActor
+    private static func checkNoticeKinds() throws {
+        guard let item = PreferenceCatalog.items.first(where: { $0.id == "finder.posixTitle" }),
+              case .toggle(let toggle) = item.control else {
+            throw CheckFailure.failed("缺少通知类型测试项目")
+        }
+        for clearsJournal in [true, false] {
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("TerminalSettingsNotice-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let log = RecordingDependencyLog()
+            let store = PreferencesStore(
+                executor: RecordingPreferenceExecutor(
+                    values: [:],
+                    allowedMutations: toggle.enableMutations.map { ($0.address, $0.value) },
+                    log: log
+                ),
+                restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
+                powerExecutor: FailClosedPowerExecutor(log: log), journal: StickyJournal(clears: clearsJournal),
+                appState: InMemoryApplicationState(), timeProvider: FixedTimeProvider(),
+                identifierProvider: FixedIdentifierProvider(),
+                undoStorageURL: directory.appendingPathComponent("last-undo.json")
+            )
+            store.refreshAll()
+            try waitUntil("通知类型测试的初次读取未完成") { !store.isWorking }
+            store.setToggle(item, enabled: true)
+            try waitUntil("通知类型测试的写入未完成") { !store.isWorking }
+            guard let notice = store.notice else {
+                throw CheckFailure.failed("写入完成后没有通知")
+            }
+            try require(notice.kind == (clearsJournal ? .success : .warning),
+                        clearsJournal ? "完整写入应显示成功通知" : "保留写前恢复日志时应显示警告通知")
+            store.dismissNotice(id: UUID())
+            try require(store.notice?.id == notice.id, "按 id 关闭移除了其他通知")
+            store.dismissNotice(id: notice.id)
+            try require(store.notice == nil, "按 id 关闭未移除对应通知")
+        }
+    }
+
+    private static func checkUnverifiedSystemMessage() throws {
+        let items = PreferenceCatalog.items
+        let verified = OperatingSystemVersion(majorVersion: 26, minorVersion: 6, patchVersion: 2)
+        let newer = OperatingSystemVersion(majorVersion: 26, minorVersion: 6, patchVersion: 3)
+        let unsupported = OperatingSystemVersion(majorVersion: 13, minorVersion: 7, patchVersion: 0)
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: verified) == nil,
+                    "已验证系统不应显示未验证横幅")
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: newer)?.source.contains("26.6.3") == true,
+                    "较新系统应显示一条未验证横幅")
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: unsupported) == nil &&
+                        PreferenceCatalog.unverifiedMessage(for: [], version: newer) == nil,
+                    "不支持的系统或空页面不应显示未验证横幅")
     }
 
     @MainActor

@@ -17,6 +17,18 @@ enum PreferenceCatalog {
         }
     }
 
+    /// Items share verification dates, so a newer macOS marks them all at
+    /// once. Pages show this single message instead of a badge on every row.
+    static func unverifiedMessage(
+        for items: [PreferenceItem],
+        version: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+    ) -> LocalizedText? {
+        for item in items {
+            if case .unverified(let message) = item.support(for: version) { return message }
+        }
+        return nil
+    }
+
     private static let global = "NSGlobalDomain"
     private static let expandedCompatibility = PreferenceCompatibility(
         minimumMajorVersion: 14,
