@@ -3079,7 +3079,7 @@ struct TerminalSettingsChecks {
             )
             func makeStore(restarter: any ProcessRestarting) -> PreferencesStore {
                 PreferencesStore(executor: executor, restarter: restarter,
-                    managementProvider: RecordingManagementProvider(log: log), powerExecutor: FailClosedPowerExecutor(log: log),
+                    managementProvider: RecordingManagementProvider(log: log), powerReader: RecordingPowerReader(log: log),
                     journal: journal, appState: state, timeProvider: FixedTimeProvider(),
                     identifierProvider: FixedIdentifierProvider(), undoStorageURL: directory.appendingPathComponent("last-undo.json"),
                     restartQuietPeriod: 0.2)
