@@ -1,6 +1,20 @@
 # Repository and preview release status
 
-## v1.9.0-preview.2 — 1.9.0 (Build 18)
+## v1.10.0-preview.1 — 1.10.0 (Build 19)
+
+The current preview removes in-app administrator authorization and power writes, provides Terminal commands and manual recovery for old power records, adds deferred Dock/Finder restarts with persistent reminders, and improves drafts, notices, shortcuts, and row layout. **Spanish translations have not yet been reviewed by a native speaker.** **西班牙语译文尚未经母语者审阅。** **Las traducciones al español aún no han sido revisadas por una persona hablante nativa.**
+
+- [Preview release](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.10.0-preview.1) · [Release notes](publication/v1.10.0-preview.1-notes.md).
+- Fixed source: [e8f62725eb61d4e1cd1c9779a3dfb7ec4cf2a414](https://github.com/muyuzy123-pixel/macos-terminal-settings/commit/e8f62725eb61d4e1cd1c9779a3dfb7ec4cf2a414); [source CI](https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/38256266681).
+- Published at **2026-10-12T13:39:28Z**. Frozen-source, contract, build, independent archive, isolated GUI, and anonymous-download results are recorded in the [Build 19 release verification](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/main/docs/publication/v1.10.0-preview.1-verification.json). Use that record for actual checks and asset hashes; earlier reports are historical evidence.
+- Power commands run by the user in Terminal are outside in-app Undo. Old power Undo/WAL records are read and validated but never replayed; incomplete records retain the write lock until a consistent state is checked.
+- Dock waits for a three-second quiet period and idle writes/refreshes; Finder waits for an explicit restart request. Pending reminders survive relaunch and resume with manual confirmation. Per-process completion preserves other in-flight and newly pending reminders.
+- **Physical mouse-hover timing and VoiceOver have not been accepted in the running app.** Automated timing policies do not verify actual pointer events, spoken announcements, or VoiceOver activation/deactivation. Real managed-profile behavior and device effects remain separate acceptance.
+- Distribution is Apple silicon **arm64**, **macOS 14.0 deployment target**, **ad-hoc signed with Hardened Runtime**, with no Developer ID or Apple notarization. Real macOS 14 runtime and Gatekeeper acceptance are not claimed.
+- Current README screenshots describe Build 19 and unapplied 48/64-point drafts. They do not establish Apply, restart, hover, or VoiceOver acceptance.
+- Earlier preview tags and Release attachments remain unchanged. The original archive remains private and is not marked read-only archived; historical publication and validation reports below are preserved.
+
+## v1.9.0-preview.2 — 1.9.0 (Build 18) — historical record
 
 The new preview includes English, Simplified Chinese, and Spanish, and corrects the Dock numeric validation hint to show the actual 1 pt step. **Spanish translations have not yet been reviewed by a native speaker.** **西班牙语译文尚未经母语者审阅。** Codex semantic review, automated checks, and directed GUI checks do not replace human native-speaker review.
 

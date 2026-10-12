@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "tag": "v1.10.0-preview.1",
+  "application": {
+    "version": "1.10.0",
+    "build": "19"
+  },
+  "source": {
+    "source_commit": "e8f62725eb61d4e1cd1c9779a3dfb7ec4cf2a414",
+    "git_tree": "f57e24f150f3157e5c21bb2c1daa5699683c4a05",
+    "tracked_file_sha256": {
+      ".gitattributes": "09743b8d65d46fadbab6d74bf2de93e3920036f5a475663f9d1b342b4bb0c38f",
+      ".github/ISSUE_TEMPLATE/bug_report.md": "f23e0f2e32676111982cafb0805955f8d8293b8edfdb836e18b50b8be1a50b69",
+      ".github/pull_request_template.md": "bfb95124c8f950ff377d34ce39f09eb54c30cb461834e8eb9f3288250c6e5205",
+      ".github/workflows/ci.yml": "5c3d3886ca861a9fe761cd3212f26e705fa47fb8dda79e12e631ab595e47e276",
+      ".gitignore": "769bea52b1b003330fc8f1ee76ad9e3b6d1511029a82d933631c0fc4aad4b0ff",
+      "AppIcon.icns": "af2c6b987a5b533eb81b98b0dc2caab3d95073bd048735c41097a97af3435c0b",
+      "CONTRIBUTING.md": "01e1a4d773e2e62d276bab2f1ffe30982f3f1e68d3132a779d7647f945aed14b",
+      "Info.plist": "b9bb14d5e1063da2224c50812035df67ef100af051dfee1f5d03489b94837270",
+      "LICENSE": "ba18e218589617fda5369b3e9ba7261e1e7284121a5b3e80a552861e0901a210",
+      "README.md": "ff011427f0b6356e8b62daf7853a3db79c38e8d836ec3a937d2d0c17c22d199c",
+      "README.zh-CN.md": "44f995e90b7c68c169191deb336482139270616fc456411921743ceee8ffa97c",
+      "Resources/en.lproj/InfoPlist.strings": "065a6ecb10f82409cc3ed24c535e4845df3e4d794a224355fc6e2466c491302a",
+      "Resources/en.lproj/Localizable.strings": "ea483c960f40f3857465dc4ccf8f5b51c05f600be9021ed19e17f40e7f0d9451",
+      "Resources/es.lproj/InfoPlist.strings": "8c026bb1d387d93e2aeab58eab5cfbe3a70f2e46a9fa6e473b2c29a8a566a006",
+      "Resources/es.lproj/Localizable.strings": "49e28475a0c9a3de0697c3d4f0963f8a87fc1ab5574f44c8e79f15cbf53c8b5b",
+      "Resources/zh-Hans.lproj/InfoPlist.strings": "a33b0b1398f3f2395d143018a83d8661799dec121b467a06fc6b1711f4252d34",
+      "Resources/zh-Hans.lproj/Localizable.strings": "4fce54381a8fe920aed1ea46d3cb7ec381f6294161e2369d2c42a2b1aea5dd18",
+      "SECURITY.md": "554f071a396a7209e6dae4733d7133d981c9637746196017bcd45b24ff3ebe97",
+      "Source/Catalog.swift": "25a9acf477d5044f1db103a04d2afd2d43938311dcfedb8190d4b0fd9af436a9",
+      "Source/Dependencies.swift": "ffdad8aaf9be8d7eb7d92c6665418dbada17781e4e99ad2ab68b999d25008121",
+      "Source/GenerateIcon.swift": "815154957f6d825c9fc7b23cb055e7ee305ec03cc44e36ea3b1b24f9bf5f305e",
+      "Source/Localization.swift": "62976b2e5d2a3b33ca386364176a0c77c396deb52f6c3af2007b2f0b6db60a2e",
+      "Source/Models.swift": "0d8ba790551dc218eb8e87d23b24de9d801bc10c54a1b7a163227cc528b34e6d",
+      "Source/PowerSettingsReader.swift": "de22f5cb58cbe418df63b762db5c42e5c0701392cd4c4a3128042cf10555ec1c",
+      "Source/PreferencesStore.swift": "48eac72e7533ce4d59145b9f4e96ae6ad59f5d746b28a24e2a632afdc279e150",
+      "Source/TerminalSettingsApp.swift": "af1f8b1dac01c1829ad061fc437b10635f3058ae58067d4c1fd47ece72a49e67",
+      "Source/Views.swift": "5c3fd95f838c393c779ae3ec015ce9cc71f053db8d8edbd3c82d901f58404449",
+      "Tests/TerminalSettingsChecks.swift": "e268c6af7098a6c2a6461cd4296946eda4325a27d084ff1318b583911d16f0af",
+      "build.sh": "ae74e6b9c516eaef1f5816934a0024a68aeda89d69716d2e946072545583739c",
+      "docs/ATTRIBUTION.md": "25516a9915104bf9837ff3aa2a50ceab3a88c5755f90ca032b938eb234d6c7c5",
+      "docs/PUBLIC_RELEASE_READINESS.md": "722cf2664914655e031d33cedf8dceb26d5f176144f33066d2e33be0bd101538",
+      "docs/RELEASE_STATUS.md": "2d8c252507f51e8b656efdaac0dd3eed00958e84d2d0a03820e20b95febe853c",
+      "docs/RELEASING.md": "e38d030d0c5c20720f8ad8c71c265d877980a02fbbc93b802f4e89dd2a432c51",
+      "docs/TESTING.md": "d60b02f22bb0ecd7e92a9b5c842cb37965ac0fdc00e5d88af8f51bc79e80eb09",
+      "docs/images/dock-numeric-controls-en.png": "a4d5e17795cf89d9f2becb002ab454be39a3ffffc07457fdfeccd3207977951b",
+      "docs/images/dock-numeric-controls-zh-Hans.png": "25076cd94ed7661bc6db7a07425afe823ce0a93cf0cfbcd25f2035c3f538c3dd",
+      "docs/images/dock-numeric-controls.png": "1528ea81098599b110c2b65df07b35b0cd866c9bd3e848e7cf727b3f2ae1aaed",
+      "docs/publication/release-notes.md": "8eec638476b756fc02ab7f75754088efc1c953f863f0c9e5b823a6957508dd29",
+      "docs/publication/screenshots-2026-09-22.json": "7ec7f97b60eeb98a931c427701ae83e998a16f43777a526230029af973b38561",
+      "docs/publication/screenshots-2026-10-12.json": "7a6f48370c3684f9377a0fcc3899946871fbfd9320b8f0cc2545875fa3e88a6c",
+      "docs/publication/security-reporting.md": "22e6954e047b1575c32e6c0a909374556ed0e50d80ed930853e05f7969d0c5c3",
+      "docs/publication/v1.10.0-preview.1-notes.md": "daae95471096ad7014c27347c682bbf2922d3f2b4295fdef7b69aafca11d9a4b",
+      "docs/publication/v1.9.0-preview.2-notes.md": "2292fcd208e5ff12802f77a3b8e24ca7298f8e063e8ae961f8049a3fb7389d50",
+      "docs/publication/v1.9.0-preview.2-verification.json": "55d90015a0418db9a55324a75091e6cb7213030e24955535b9f4b440d1973c4d",
+      "docs/publication/verification.json": "a542b5e4789920ba366dd9331fd2473ad6b7ad34bfc7a4f307858e31f1276a4d",
+      "docs/upstream-baseline.json": "38b12ca666aa278c9f79793fe05db0f5dcf284d2e6ee9b140e8ea06e06605179",
+      "docs/validation/spanish-localization-2026-10-09.json": "3a43bd8205bd54f8cdc2d7ab5e559daa0151d97acc532b2ab437909ba4976359",
+      "docs/validation/spanish-localization-2026-10-09.md": "849a483738d2a1d7f7b136db91451509fe6c9d76b535a04a045e4db2aa3d3b20",
+      "scripts/check-release.sh": "07db21450bd36e38d7c1ce2536f52a76f056d7e70ff99fac37104f34c44dc9a3",
+      "scripts/generate-icon.sh": "5eea92a7c98d8423951203c166105ecdcd746af05af207929cf73806a02a2821",
+      "scripts/toolchain.sh": "c1b8b970aa4c593eac9f4ec8c2a0401b0138394a23acdb58e2c4639f444e45db",
+      "verify.sh": "6b58d581d6b9cd52cc72744705f382c2492590b13bbf18a41a1bcda13f115b75"
+    },
+    "environment": {
+      "macos": "26.6.2",
+      "os_build": "25G83",
+      "architecture": "arm64",
+      "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0",
+      "sdk": "26.5",
+      "deployment_target": "14.0"
+    },
+    "export_method": "git archive of fixed source commit; independent directory and module cache"
+  },
+  "checks": {
+    "source_ci": "https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/38256266681",
+    "source_ci_conclusion": "success",
+    "local_full_verify": "passed (contracts and isolated integration)",
+    "local_build": "passed",
+    "independent_archive": "passed",
+    "strict_extracted_zip_signature": "passed",
+    "source_commit_author_and_committer_email": "252638864+muyuzy123-pixel@users.noreply.github.com",
+    "source_ci_email_scan": "passed",
+    "authorization_import_check": {
+      "command": "nm -u on executable extracted from frozen release ZIP",
+      "authorization_imports": [],
+      "binary_sha256": "4177cb594bcaada2b220460ee48495e3d23beec20bf5072a0fac9efb7210308b",
+      "app_version": "1.10.0",
+      "app_build": "19"
+    }
+  },
+  "gui_smoke": {
+    "isolated_bundle_id": true,
+    "extracted_from_frozen_zip": true,
+    "qa_modifications": [
+      "CFBundleIdentifier",
+      "ad-hoc re-signing"
+    ],
+    "test_only_code_added": false,
+    "gui_cases": {
+      "launch": true,
+      "language_cycle": [
+        "follow-system (zh-Hans)",
+        "en",
+        "es",
+        "zh-Hans"
+      ],
+      "spanish_search": {
+        "query": "ocultación automática",
+        "result_count": 2
+      },
+      "unapplied_drafts": [
+        48,
+        64
+      ],
+      "invalid_48_5_step_hint_pt": 1,
+      "apply_disabled_on_invalid_input": true,
+      "valid_48_reenables_apply": true,
+      "refresh_preserves_drafts_and_current_values": true,
+      "relaunch_preserves_spanish_and_drafts_and_editing_mode": true,
+      "category_shortcuts": "Command-1 through Command-9 passed",
+      "refresh_shortcut": "Command-R exercised; interface remained responsive with current values and drafts retained",
+      "advanced_readonly_page_and_copy_command_menu": true,
+      "unsupported_power_commands_disabled": true
+    },
+    "real_apply_undo_recovery_process_restart_or_sudo_executed": false,
+    "qa_process_exited": true,
+    "qa_copy_and_state_cleaned": true,
+    "frozen_assets_unchanged": true
+  },
+  "upgrade_regression": {
+    "method": "Existing deterministic contracts with synthetic records or injected dependencies, run as part of the full final-source verify.sh",
+    "covered": [
+      "historical Undo schemas and optional fields",
+      "legacy completed power Undo and pending WAL: matching before, matching after with explicit keep, partial/conflicting/unreadable states",
+      "language/numeric drafts and editing mode persistence",
+      "pending restart metadata validation and cold-start manual hold",
+      "restart blocked during writes; deferred countdown waits until idle",
+      "two blocked concurrent restarts and later pending changes preserved independently",
+      "notice non-hover elapsed-time budget, VoiceOver latch, cancellation and notice identity"
+    ],
+    "real_published_build18_to_build19_gui_upgrade": false,
+    "physical_mouse_hover_acceptance": false,
+    "voiceover_acceptance": false
+  },
+  "production_audit": {
+    "preference_addresses": 46,
+    "unchanged": [
+      "environment",
+      "preferences",
+      "power",
+      "appState",
+      "appFiles",
+      "residues"
+    ],
+    "raw_snapshots_published": false
+  },
+  "screenshots": "docs/publication/screenshots-2026-10-12.json",
+  "frozen_assets": {
+    "TerminalSettings.zip": {
+      "sha256": "dad2cffeaf43fe87e00abd97667684240f1e5c29a7b80eec1022d58da8e22dc1",
+      "size_bytes": 1645619
+    },
+    "SHA256SUMS": {
+      "sha256": "aba22291065566e7c389b0611834d8463c89ef32cb3a1d1b2d5c081e4e457003",
+      "size_bytes": 87
+    },
+    "release-manifest.json": {
+      "sha256": "7950f95fb935ff8ba251197656c75dd2f25b257e19837f3574c4d7b98f6ec382",
+      "size_bytes": 4025
+    }
+  },
+  "translation_review": {
+    "human_native_speaker_review": false,
+    "status": "Spanish translations have not yet been reviewed by a native speaker.",
+    "in_app_notice_added": false
+  },
+  "boundaries": {
+    "ad_hoc_signed": true,
+    "hardened_runtime": true,
+    "developer_id_signed": false,
+    "notarized": false,
+    "macos14_runtime_acceptance": false,
+    "real_process_restart_acceptance": false,
+    "historical_spanish_acceptance": "docs/validation/spanish-localization-2026-10-09.md",
+    "manifest_scope": "The archive checker does not independently establish binary/source correspondence or runtime UI acceptance. This separate record documents building the fixed exported tree and testing an isolated copy of the final ZIP."
+  },
+  "prepublication": {
+    "verified_at_utc": "2026-10-12T13:37:55.638989+00:00",
+    "repository_id": 1377772976,
+    "private_archive_id": 1377740283,
+    "private_archive_private": true,
+    "private_archive_archived": false,
+    "previous_release_metadata_and_assets_unchanged": true
+  },
+  "draft_download_verification": {
+    "release_id": 410643085,
+    "verified_at_utc": "2026-10-12T13:38:49.871468+00:00",
+    "downloads": [
+      {
+        "name": "TerminalSettings.zip",
+        "sha256": "dad2cffeaf43fe87e00abd97667684240f1e5c29a7b80eec1022d58da8e22dc1",
+        "size_bytes": 1645619
+      },
+      {
+        "name": "SHA256SUMS",
+        "sha256": "aba22291065566e7c389b0611834d8463c89ef32cb3a1d1b2d5c081e4e457003",
+        "size_bytes": 87
+      },
+      {
+        "name": "release-manifest.json",
+        "sha256": "7950f95fb935ff8ba251197656c75dd2f25b257e19837f3574c4d7b98f6ec382",
+        "size_bytes": 4025
+      }
+    ],
+    "all_match_frozen_assets": true
+  },
+  "publication": {
+    "repo_id": 1377772976,
+    "release_id": 410643085,
+    "release_url": "https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.10.0-preview.1",
+    "published_at_utc": "2026-10-12T13:39:28Z",
+    "verified_at_utc": "2026-10-12T13:40:15.072063+00:00",
+    "draft": false,
+    "prerelease": true,
+    "anonymous_downloads": [
+      {
+        "id": 633896028,
+        "name": "release-manifest.json",
+        "url": "https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/download/v1.10.0-preview.1/release-manifest.json",
+        "sha256": "7950f95fb935ff8ba251197656c75dd2f25b257e19837f3574c4d7b98f6ec382",
+        "size_bytes": 4025,
+        "http_status": 200
+      },
+      {
+        "id": 633896032,
+        "name": "SHA256SUMS",
+        "url": "https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/download/v1.10.0-preview.1/SHA256SUMS",
+        "sha256": "aba22291065566e7c389b0611834d8463c89ef32cb3a1d1b2d5c081e4e457003",
+        "size_bytes": 87,
+        "http_status": 200
+      },
+      {
+        "id": 633896031,
+        "name": "TerminalSettings.zip",
+        "url": "https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/download/v1.10.0-preview.1/TerminalSettings.zip",
+        "sha256": "dad2cffeaf43fe87e00abd97667684240f1e5c29a7b80eec1022d58da8e22dc1",
+        "size_bytes": 1645619,
+        "http_status": 200
+      }
+    ],
+    "release_page_http_status": 200,
+    "release_page_contains_version_build_and_spanish_review_notice": true,
+    "annotated_tag_object": "43f31128a631d2ff935829975db9e62df10a3d89",
+    "tag_target": "e8f62725eb61d4e1cd1c9779a3dfb7ec4cf2a414",
+    "tagger_email": "252638864+muyuzy123-pixel@users.noreply.github.com",
+    "logged_out_browser_release_page_checked": true
+  },
+  "preservation": {
+    "previous_tag_refs_unchanged": true,
+    "previous_release_metadata_and_asset_identity_unchanged": true,
+    "previous_assets_anonymously_downloaded_and_hash_matched": [
+      {
+        "tag": "v1.9.0-preview.2",
+        "name": "release-manifest.json",
+        "asset_id": 629263791,
+        "sha256": "bdf201572dc1ab72dbd9409c6dcfc4d5030ee6737cba0efc58d62630ba267890"
+      },
+      {
+        "tag": "v1.9.0-preview.2",
+        "name": "SHA256SUMS",
+        "asset_id": 629263792,
+        "sha256": "256cca6508dd675caa2590e5fd00f8016ad5b824f7320c8d0e4012a0f718a04e"
+      },
+      {
+        "tag": "v1.9.0-preview.2",
+        "name": "TerminalSettings.zip",
+        "asset_id": 629263790,
+        "sha256": "9235e2b014de886e33764cd60c25cc48dfa9c1292f78aa2a700679f607199b5b"
+      },
+      {
+        "tag": "v1.9.0-preview.1",
+        "name": "release-manifest.json",
+        "asset_id": 575848782,
+        "sha256": "09ffc4f69b9e6e07d8505bd0b2ded54f8716a0566bb465aa0515894743336c5f"
+      },
+      {
+        "tag": "v1.9.0-preview.1",
+        "name": "SHA256SUMS",
+        "asset_id": 575848783,
+        "sha256": "3ea586922e638aba58f2e3a724b8c4718e6ec3e0df4aa92fe5cb3745332317df"
+      },
+      {
+        "tag": "v1.9.0-preview.1",
+        "name": "TerminalSettings.zip",
+        "asset_id": 575848781,
+        "sha256": "9c1e3f429ccc4012c1c52854edb5c5706c7c4f7f9819f65809c9d9b549986c52"
+      }
+    ],
+    "archive_id": 1377740283,
+    "archive_private": true,
+    "archive_archived": false,
+    "archive_anonymous_api_status": 404
+  }
+}
