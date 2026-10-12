@@ -116,6 +116,8 @@ private final class RecordingPreferenceExecutor: PreferenceExecuting, @unchecked
     private let allowedRestores: [PreferenceSnapshot]
     private let failingApplyAddress: PreferenceAddress?
     private let log: RecordingDependencyLog
+    private var pausedApplyAddress: PreferenceAddress?
+    private let applyRelease = DispatchSemaphore(value: 0)
 
     init(
         values: [PreferenceAddress: PreferenceValue],
@@ -188,6 +190,12 @@ private final class RecordingPreferenceExecutor: PreferenceExecuting, @unchecked
 
     func apply(_ mutation: PreferenceMutation) throws {
         log.append(.preferenceApply(mutation.address, mutation.value))
+        lock.lock()
+        let shouldPause = mutation.address == pausedApplyAddress
+        lock.unlock()
+        if shouldPause, applyRelease.wait(timeout: .now() + 5) == .timedOut {
+            throw CheckFailure.failed("等待测试放行内存写入超时")
+        }
         if mutation.address == failingApplyAddress {
             throw CheckFailure.failed("模拟第二键写入失败")
         }
@@ -236,6 +244,16 @@ private final class RecordingPreferenceExecutor: PreferenceExecuting, @unchecked
         lock.lock()
         defer { lock.unlock() }
         return values[address]
+    }
+
+    func pauseApply(at address: PreferenceAddress) {
+        lock.lock()
+        pausedApplyAddress = address
+        lock.unlock()
+    }
+
+    func resumePausedApply() {
+        applyRelease.signal()
     }
 
     private func currentSnapshots(
@@ -584,6 +602,8 @@ struct TerminalSettingsChecks {
         try checkNoticeKinds()
         try checkUnverifiedSystemMessage()
         try checkCoalescedRestarts()
+        try checkPendingRestartPersistence()
+        try checkRestartDuringInFlightWrite()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -2780,6 +2800,226 @@ struct TerminalSettingsChecks {
         try waitUntil("退出时程序坞未重启", timeout: 1) { !restarts(since: checkpoint).isEmpty }
         try require(restarts(since: checkpoint) == [["Dock"]] && store.restartCountdowns.isEmpty,
                     "退出时倒计时中的程序坞应立即重启一次")
+    }
+
+    @MainActor
+    private static func checkPendingRestartPersistence() throws {
+        let dock = PreferenceCatalog.items.first { $0.id == "dock.activeOnly" }!
+        let finder = PreferenceCatalog.items.first { $0.id == "finder.posixTitle" }!
+        guard case .toggle(let dockToggle) = dock.control,
+              case .toggle(let finderToggle) = finder.control else {
+            throw CheckFailure.failed("缺少重启持久化测试开关")
+        }
+        let items = [dock, finder]
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("TerminalSettingsRestartPersistence-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let log = RecordingDependencyLog()
+        let state = InMemoryApplicationState()
+        let executor = RecordingPreferenceExecutor(
+            values: [:],
+            allowedMutations: items.flatMap { item -> [(PreferenceAddress, PreferenceValue?)] in
+                guard case .toggle(let toggle) = item.control else { return [] }
+                return (toggle.enableMutations + toggle.disableMutations).map { ($0.address, $0.value) }
+            },
+            allowedRestores: items.flatMap { item -> [PreferenceSnapshot] in
+                item.allAddresses.map { PreferenceSnapshot(address: $0, value: nil) }
+            }, log: log
+        )
+        let journal = RecordingJournal(
+            expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"), log: log
+        )
+        func makeStore(appState: InMemoryApplicationState) -> PreferencesStore {
+            PreferencesStore(executor: executor, restarter: RecordingRestarter(log: log),
+                managementProvider: RecordingManagementProvider(log: log), powerExecutor: FailClosedPowerExecutor(log: log),
+                journal: journal, appState: appState, timeProvider: FixedTimeProvider(),
+                identifierProvider: FixedIdentifierProvider(), undoStorageURL: directory.appendingPathComponent("last-undo.json"),
+                restartQuietPeriod: 0.2)
+        }
+        func restarts(since checkpoint: Int) -> [[String]] {
+            log.events(since: checkpoint).compactMap { event in
+                if case .restart(let names) = event { return names }
+                return nil
+            }
+        }
+        let key = PersistedProcessRestarts.storageKey
+        let original = makeStore(appState: state)
+        original.refreshAll()
+        try waitUntil("重启持久化初次读取未完成") { !original.isWorking }
+        original.setToggle(finder, enabled: true)
+        try waitUntil("重启持久化访达写入未完成") { !original.isWorking }
+        original.setToggle(dock, enabled: true)
+        try waitUntil("重启持久化程序坞写入未完成") { !original.isWorking }
+        original.holdPendingRestart("Dock")
+        let stored = try JSONDecoder().decode(PersistedProcessRestarts.self, from: state.data(forKey: key)!)
+        try require(stored.isAllowed && stored.heldProcesses == ["Dock"] &&
+                    stored.baselines["Dock"]?[dock.id] == [PreferenceSnapshot(address: dockToggle.readAddress, value: nil)] &&
+                    stored.baselines["Finder"]?[finder.id] == [PreferenceSnapshot(address: finderToggle.readAddress, value: nil)],
+                    "待重启项目、原始不存在值或稍后状态未持久化")
+
+        let checkpoint = log.checkpoint()
+        let reopened = makeStore(appState: state)
+        reopened.refreshAll()
+        try waitUntil("重开后的重启状态读取未完成") { !reopened.isWorking }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        try require(reopened.pendingRestarts == ["Dock": [dock.id], "Finder": [finder.id]] &&
+                    reopened.heldRestarts == ["Dock"] && reopened.restartCountdowns.isEmpty && restarts(since: checkpoint).isEmpty,
+                    "重开后应恢复访达和已推迟程序坞的手动入口，不得自动重启")
+        reopened.restartPendingProcess("Finder")
+        try waitUntil("重开后访达手动重启未清理持久化数据") {
+            guard let data = state.data(forKey: key),
+                  let remaining = try? JSONDecoder().decode(PersistedProcessRestarts.self, from: data) else { return false }
+            return Set(remaining.baselines.keys) == ["Dock"]
+        }
+        reopened.restartPendingProcess("Dock")
+        try waitUntil("重开后程序坞手动重启未清理持久化数据") { state.object(forKey: key) == nil }
+        try require(restarts(since: checkpoint) == [["Finder"], ["Dock"]] && reopened.pendingRestarts.isEmpty,
+                    "恢复后的每个进程必须只按请求重启一次")
+        let clean = makeStore(appState: state)
+        try require(clean.pendingRestarts.isEmpty, "已完成的重启在下次创建 store 时再次出现")
+
+        // Simulate a crash with a countdown reminder saved before Later was chosen.
+        let unheld = PersistedProcessRestarts(baselines: ["Dock": stored.baselines["Dock"]!], heldProcesses: [])
+        state.set(try JSONEncoder().encode(unheld), forKey: key)
+        let cold = makeStore(appState: state)
+        cold.refreshAll()
+        try waitUntil("恢复原倒计时记录的读取未完成") { !cold.isWorking }
+        let coldCheckpoint = log.checkpoint()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        try require(cold.heldRestarts == ["Dock"] && cold.restartCountdowns.isEmpty && restarts(since: coldCheckpoint).isEmpty,
+                    "冷启动恢复的程序坞倒计时必须改为等待手动确认")
+        cold.undo()
+        try waitUntil("恢复待重启记录后的撤销未完成") { !cold.isWorking }
+        try require(cold.pendingRestarts.isEmpty && state.object(forKey: key) == nil && restarts(since: coldCheckpoint).isEmpty,
+                    "撤销到已载入 baseline 后必须清理持久化重启数据且不重启")
+
+        let exit = makeStore(appState: state)
+        exit.refreshAll()
+        try waitUntil("退出清理测试的读取未完成") { !exit.isWorking }
+        exit.setToggle(dock, enabled: true)
+        try waitUntil("退出清理测试的写入未完成") { !exit.isWorking }
+        let exitCheckpoint = log.checkpoint()
+        NotificationCenter.default.post(name: NSApplication.willTerminateNotification, object: nil)
+        try require(restarts(since: exitCheckpoint) == [["Dock"]] && exit.pendingRestarts.isEmpty && state.object(forKey: key) == nil,
+                    "退出时执行的程序坞重启必须清理持久化数据")
+
+        // Metadata never grants a process, item, address, or non-scalar value outside the catalog.
+        let baseline = [PreferenceSnapshot(address: dockToggle.readAddress, value: nil)]
+        let wrongAddress = PreferenceAddress(domain: "arbitrary.domain", key: "arbitrary-key")
+        let wrongScope = PreferenceAddress(domain: dockToggle.readAddress.domain, key: dockToggle.readAddress.key, hostScope: .currentHost)
+        let invalidStates = [
+            PersistedProcessRestarts(baselines: ["arbitrary-process": [dock.id: baseline]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Finder": [dock.id: baseline]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": ["unknown-item": baseline]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: []]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: baseline + baseline]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: [PreferenceSnapshot(address: wrongAddress, value: nil)]]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: [PreferenceSnapshot(address: wrongScope, value: nil)]]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Finder": stored.baselines["Finder"]!], heldProcesses: ["Finder"]),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: baseline]], heldProcesses: ["arbitrary-process"]),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: [PreferenceSnapshot(address: dockToggle.readAddress, value: .float(.nan))]]], heldProcesses: []),
+            PersistedProcessRestarts(baselines: ["Dock": [dock.id: [PreferenceSnapshot(address: dockToggle.readAddress, value: .string(String(repeating: "x", count: 65_537)))]]], heldProcesses: [])
+        ]
+        for invalid in invalidStates {
+            try require(!invalid.isAllowed, "重启元数据白名单放行了非法进程、项目、地址或值")
+            guard let data = try? JSONEncoder().encode(invalid) else { continue }
+            let invalidState = InMemoryApplicationState()
+            invalidState.set(data, forKey: key)
+            let rejected = makeStore(appState: invalidState)
+            rejected.restartPendingProcess("arbitrary-process")
+            try require(rejected.pendingRestarts.isEmpty && rejected.restartCountdowns.isEmpty && invalidState.object(forKey: key) == nil,
+                        "非法重启元数据必须被移除，且不能启动重启")
+        }
+        for invalidData in [Data("not-json".utf8), Data("{\"baselines\":[]}".utf8),
+                            Data(repeating: 0, count: PersistedProcessRestarts.maximumByteCount + 1)] {
+            let invalidState = InMemoryApplicationState()
+            invalidState.set(invalidData, forKey: key)
+            try require(makeStore(appState: invalidState).pendingRestarts.isEmpty && invalidState.object(forKey: key) == nil,
+                        "损坏或过大的重启元数据必须被移除")
+        }
+        let wrongType = InMemoryApplicationState()
+        wrongType.set("not-data", forKey: key)
+        try require(makeStore(appState: wrongType).pendingRestarts.isEmpty && wrongType.object(forKey: key) == nil,
+                    "重启元数据类型错误必须安全忽略")
+        try require(restarts(since: exitCheckpoint) == [["Dock"]], "读取非法元数据触发了进程重启")
+        for value: PreferenceValue? in [nil, .bool(false), .integer(0), .float(0.25), .string("原始标量")] {
+            let allowed = PersistedProcessRestarts(baselines: ["Dock": [dock.id: [PreferenceSnapshot(address: dockToggle.readAddress, value: value)]]], heldProcesses: [])
+            let roundTrip = try JSONDecoder().decode(PersistedProcessRestarts.self, from: JSONEncoder().encode(allowed))
+            try require(roundTrip.isAllowed && roundTrip.baselines["Dock"]?[dock.id]?.first?.value == value,
+                        "重启 baseline 序列化不得丢失不存在值或标量类型")
+        }
+    }
+
+    @MainActor
+    private static func checkRestartDuringInFlightWrite() throws {
+        let ids = ["dock.activeOnly", "dock.allDisplaySwitcher", "finder.posixTitle"]
+        let items = ids.map { id in PreferenceCatalog.items.first { $0.id == id }! }
+        let (dockA, dockB, finder) = (items[0], items[1], items[2])
+        guard case .toggle(let toggleB) = dockB.control, case .toggle(let finderToggle) = finder.control else {
+            throw CheckFailure.failed("缺少重启执行顺序测试项目")
+        }
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("TerminalSettingsRestartInFlight-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let log = RecordingDependencyLog()
+        let state = InMemoryApplicationState()
+        let executor = RecordingPreferenceExecutor(values: [:], allowedMutations: items.flatMap { item -> [(PreferenceAddress, PreferenceValue?)] in
+            guard case .toggle(let toggle) = item.control else { return [] }
+            return (toggle.enableMutations + toggle.disableMutations).map { ($0.address, $0.value) }
+        }, log: log)
+        let store = PreferencesStore(executor: executor, restarter: RecordingRestarter(log: log),
+            managementProvider: RecordingManagementProvider(log: log), powerExecutor: FailClosedPowerExecutor(log: log),
+            journal: RecordingJournal(expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"), log: log),
+            appState: state, timeProvider: FixedTimeProvider(), identifierProvider: FixedIdentifierProvider(),
+            undoStorageURL: directory.appendingPathComponent("last-undo.json"), restartQuietPeriod: 0.2)
+        func restarts(since checkpoint: Int) -> [[String]] {
+            log.events(since: checkpoint).compactMap { event in
+                if case .restart(let names) = event { return names }
+                return nil
+            }
+        }
+        func reachedApply(_ address: PreferenceAddress, since checkpoint: Int) -> Bool {
+            log.events(since: checkpoint).contains { event in
+                if case .preferenceApply(let actual, _) = event { return actual == address }
+                return false
+            }
+        }
+        store.refreshAll()
+        try waitUntil("重启执行顺序测试的初次读取未完成") { !store.isWorking }
+        store.setToggle(dockA, enabled: true)
+        try waitUntil("重启执行顺序测试第一项写入未完成") { !store.isWorking }
+        store.holdPendingRestart("Dock")
+        let checkpoint = log.checkpoint()
+        executor.pauseApply(at: toggleB.readAddress)
+        defer { executor.resumePausedApply() }
+        store.setToggle(dockB, enabled: true)
+        try waitUntil("第二项写入未进入阻塞点") { reachedApply(toggleB.readAddress, since: checkpoint) }
+        store.restartPendingProcess("Dock")
+        try require(store.isWorking && store.pendingRestarts["Dock"] == [dockA.id] && store.heldRestarts == ["Dock"] && restarts(since: checkpoint).isEmpty,
+                    "写入期间立即重启必须被拒绝，且不能清空已有 pending 或稍后状态")
+        executor.resumePausedApply()
+        try waitUntil("第二项阻塞写入未完成") { !store.isWorking }
+        store.restartPendingProcess("Dock")
+        try waitUntil("idle 后的手动重启未完成") { state.object(forKey: PersistedProcessRestarts.storageKey) == nil }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        try require(restarts(since: checkpoint) == [["Dock"]], "idle 后立即重启必须只执行一次，不得再自动重启")
+
+        // Dock's timer may expire during an unrelated Finder transaction.
+        store.setToggle(dockA, enabled: false)
+        try waitUntil("无关写入倒计时测试准备未完成") { !store.isWorking }
+        let unrelatedCheckpoint = log.checkpoint()
+        executor.pauseApply(at: finderToggle.readAddress)
+        store.setToggle(finder, enabled: true)
+        try waitUntil("访达写入未进入阻塞点") { reachedApply(finderToggle.readAddress, since: unrelatedCheckpoint) }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        try require(store.isWorking && restarts(since: unrelatedCheckpoint).isEmpty,
+                    "其他写入尚未完成时倒计时也不能重启")
+        executor.resumePausedApply()
+        try waitUntil("访达阻塞写入未完成") { !store.isWorking }
+        try waitUntil("idle 后程序坞倒计时重启丢失") { !restarts(since: unrelatedCheckpoint).isEmpty }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        try require(restarts(since: unrelatedCheckpoint) == [["Dock"]] && store.pendingRestarts["Finder"] == [finder.id],
+                    "其他写入结束后程序坞必须重启一次，访达仍等待用户确认")
     }
 
     private static func checkUnverifiedSystemMessage() throws {

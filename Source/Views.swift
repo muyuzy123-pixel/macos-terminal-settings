@@ -1731,6 +1731,7 @@ struct RestartBanner: View {
             }
             Button(language.text(L("立即重启\(name)"))) { store.restartPendingProcess(process) }
                 .buttonStyle(.borderedProminent)
+                .disabled(store.isWorking)
                 .accessibilityIdentifier("restart.now.\(process)")
         }
         .padding(.horizontal, 15)

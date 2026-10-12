@@ -543,6 +543,43 @@ enum ProcessRestartPolicy: Equatable {
     }
 }
 
+/// Application-owned metadata only: baselines are used for comparison, never
+/// restored to system preferences. Pending item IDs are derived from its keys.
+struct PersistedProcessRestarts: Codable {
+    static let storageKey = "processRestarts.pending"
+    static let maximumByteCount = 1_048_576
+
+    let baselines: [String: [String: [PreferenceSnapshot]]]
+    let heldProcesses: Set<String>
+
+    var isAllowed: Bool {
+        let allowedProcesses: Set<String> = ["Dock", "Finder"]
+        guard !baselines.isEmpty,
+              Set(baselines.keys).isSubset(of: allowedProcesses),
+              heldProcesses.isSubset(of: Set(baselines.keys)),
+              heldProcesses.allSatisfy({ ProcessRestartPolicy.policy(for: $0) == .afterQuietPeriod }) else {
+            return false
+        }
+        for (process, items) in baselines {
+            guard !items.isEmpty else { return false }
+            for (itemID, snapshots) in items {
+                guard let item = PreferenceCatalog.items.first(where: { $0.id == itemID }),
+                      !item.requiresAdministrator, item.restartProcesses.contains(process),
+                      snapshots.count == item.allAddresses.count,
+                      Set(snapshots.map(\.address)) == Set(item.allAddresses),
+                      snapshots.allSatisfy({ snapshot in
+                          switch snapshot.value {
+                          case .float(let value): return value.isFinite
+                          case .string(let value): return value.utf8.count <= 65_536
+                          case .bool, .integer, .none: return true
+                          }
+                      }) else { return false }
+            }
+        }
+        return true
+    }
+}
+
 struct PreferenceChangeFailure: LocalizedError, DisplayMessageError {
     let message: LocalizedText
     var helperOutcomeIsUnknown = false
@@ -676,6 +713,7 @@ final class PreferencesStore: ObservableObject {
         }
         loadUndoRecord()
         loadPendingPreferenceTransaction()
+        loadPendingRestarts()
         // A countdown the user was shown still restarts its process at quit.
         // Postponed and on-request restarts stay with the user.
         terminationObserver = NotificationCenter.default.addObserver(
@@ -1536,15 +1574,19 @@ final class PreferencesStore: ObservableObject {
     }
 
     /// Restarts a process now so it loads the preferences written since its
-    /// last restart. The restart queues behind any write still in progress.
+    /// last restart. Calls during a write or refresh leave the reminder intact.
     func restartPendingProcess(_ process: String) {
-        guard pendingRestarts[process] != nil else { return }
+        guard !isWorking, pendingRestarts[process] != nil else { return }
         cancelRestartCountdown(process)
         heldRestarts.remove(process)
         pendingRestarts[process] = nil
         restartBaselines[process] = nil
         let restarter = self.restarter
-        executorQueue.async { restarter.restart([process]) }
+        executorQueue.async { [self] in
+            restarter.restart([process])
+            // Retain the durable reminder until the restart adapter returns.
+            DispatchQueue.main.async { self.persistPendingRestarts() }
+        }
     }
 
     /// Postpones a quiet-period restart until the user asks for it.
@@ -1552,6 +1594,7 @@ final class PreferencesStore: ObservableObject {
         guard pendingRestarts[process] != nil else { return }
         cancelRestartCountdown(process)
         heldRestarts.insert(process)
+        persistPendingRestarts()
     }
 
     /// Dismisses only the given notice, so a delayed dismissal never removes
@@ -2483,6 +2526,43 @@ final class PreferencesStore: ObservableObject {
                 }
             }
         }
+        persistPendingRestarts()
+    }
+
+    private func loadPendingRestarts() {
+        let key = PersistedProcessRestarts.storageKey
+        guard appDefaults.object(forKey: key) != nil else { return }
+        guard let data = appDefaults.data(forKey: key),
+              data.count <= PersistedProcessRestarts.maximumByteCount,
+              let stored = try? JSONDecoder().decode(PersistedProcessRestarts.self, from: data),
+              stored.isAllowed else {
+            appDefaults.removeObject(forKey: key)
+            return
+        }
+        restartBaselines = stored.baselines
+        pendingRestarts = stored.baselines.mapValues { Set($0.keys) }
+        // A previous session's countdown must never cause an unexpected
+        // restart at launch. Every restored Dock reminder waits for a click.
+        heldRestarts = stored.heldProcesses.union(stored.baselines.keys.filter {
+            ProcessRestartPolicy.policy(for: $0) == .afterQuietPeriod
+        })
+        persistPendingRestarts()
+    }
+
+    private func persistPendingRestarts() {
+        let key = PersistedProcessRestarts.storageKey
+        guard !restartBaselines.isEmpty else {
+            appDefaults.removeObject(forKey: key)
+            return
+        }
+        let stored = PersistedProcessRestarts(baselines: restartBaselines, heldProcesses: heldRestarts)
+        guard stored.isAllowed,
+              let data = try? JSONEncoder().encode(stored),
+              data.count <= PersistedProcessRestarts.maximumByteCount else {
+            appDefaults.removeObject(forKey: key)
+            return
+        }
+        appDefaults.set(data, forKey: key)
     }
 
     /// Re-arms quiet-period countdowns after a transaction on these processes.
@@ -2502,6 +2582,12 @@ final class PreferencesStore: ObservableObject {
                     try? await Task.sleep(for: .seconds(tick))
                     guard !Task.isCancelled else { return }
                     restartCountdowns[process] = remaining
+                }
+                // Another process's write/refresh can still be running when
+                // this countdown ends. Wait for it instead of losing the task.
+                while isWorking {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    guard !Task.isCancelled else { return }
                 }
                 restartPendingProcess(process)
             }
@@ -2524,6 +2610,12 @@ final class PreferencesStore: ObservableObject {
         processes.forEach(cancelRestartCountdown)
         let restarter = self.restarter
         executorQueue.sync { restarter.restart(processes) }
+        for process in processes {
+            pendingRestarts[process] = nil
+            restartBaselines[process] = nil
+            heldRestarts.remove(process)
+        }
+        persistPendingRestarts()
     }
 
     nonisolated private static func snapshotsMatch(
