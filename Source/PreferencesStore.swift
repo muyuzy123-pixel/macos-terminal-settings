@@ -574,6 +574,10 @@ final class PreferencesStore: ObservableObject {
     private var pendingJournalIsUnreadable = false
     private var initializedCurrentDraftItemIDs: Set<String> = []
     private var finiteCustomizationDrafts: [String: [String: Double]] = [:]
+    /// The system value last shown in each text field. A draft that differs
+    /// from it holds unapplied input and survives unrelated refreshes.
+    private var textSyncedValues: [String: String] = [:]
+    private var textDraftResyncItemIDs: Set<String> = []
 
     convenience init(
         appDefaults: UserDefaults = .standard,
@@ -734,7 +738,16 @@ final class PreferencesStore: ObservableObject {
         return true
     }
 
-    func refreshAll() {
+    /// True while an item awaits its first read or the result of an explicit refresh.
+    var hasLoadingStates: Bool {
+        readStates.values.contains(.loading)
+    }
+
+    /// Re-reads every catalog item. A refresh that follows a completed
+    /// transaction keeps the last displayed states until the new values
+    /// arrive, so the page does not flash back to "reading". Modification
+    /// stays blocked through `isWorking` either way.
+    func refreshAll(preservingDisplayedState: Bool = false) {
         guard !isRefreshing else { return }
         isRefreshing = true
 
@@ -751,13 +764,19 @@ final class PreferencesStore: ObservableObject {
                 readStates[item.id] = .unsupported(message)
                 markCustomizationCurrentValues(for: item, as: .unavailable(message))
             default:
-                readStates[item.id] = .loading
-                markCustomizationCurrentValues(for: item, as: .loading)
+                if !preservingDisplayedState {
+                    readStates[item.id] = .loading
+                    markCustomizationCurrentValues(for: item, as: .loading)
+                }
             }
-            managementStates[item.id] = item.requiresAdministrator ? .notApplicable : .checking
+            if !preservingDisplayedState {
+                managementStates[item.id] = item.requiresAdministrator ? .notApplicable : .checking
+            }
         }
-        contextValues = [:]
-        contextRestrictions = [:]
+        if !preservingDisplayedState {
+            contextValues = [:]
+            contextRestrictions = [:]
+        }
         let addresses = uniqueAddresses(regularItems.flatMap(\.readAddresses))
         let powerKeys = privilegedItems.compactMap(\.privilegedKey)
         let executor = self.executor
@@ -827,6 +846,9 @@ final class PreferencesStore: ObservableObject {
                         errors.append(error.displayMessage)
                     }
                 case .failure(let error):
+                    // Context read alongside the failed values is unknown too.
+                    self.contextValues = [:]
+                    self.contextRestrictions = [:]
                     for item in regularItems {
                         self.readStates[item.id] = .error(error.displayMessage)
                         self.managementStates[item.id] = .unknown(error.displayMessage)
@@ -1340,7 +1362,8 @@ final class PreferencesStore: ObservableObject {
                             canUndo: true
                         )
                     }
-                    self.refreshAll()
+                    self.resyncTextDrafts(for: itemIDs)
+                    self.refreshAll(preservingDisplayedState: true)
                 case .failure(let error):
                     self.alert = self.makeAlert(title: L("无法撤销"), message: error.displayMessage)
                 }
@@ -1430,7 +1453,7 @@ final class PreferencesStore: ObservableObject {
                             canUndo: true
                         )
                     }
-                    self.refreshAll()
+                    self.refreshAll(preservingDisplayedState: true)
                 case .failure(let error):
                     self.alert = self.makeAlert(
                         title: L("无法撤销高级设置"),
@@ -1706,13 +1729,21 @@ final class PreferencesStore: ObservableObject {
                 readStates[item.id] = .configured(LocalizedText(verbatim: stored.displayValue))
             }
         case .text(let preference):
-            guard let raw = values[preference.address]?.displayValue else {
-                textDrafts[item.id] = ""
+            let raw = values[preference.address]?.displayValue
+            // Follow the system value only while the field is unedited or after
+            // a transaction on this item; otherwise keep the unapplied input.
+            let followsSystem = textDraftResyncItemIDs.remove(item.id) != nil ||
+                textDrafts[item.id] == nil ||
+                textDrafts[item.id] == textSyncedValues[item.id]
+            textSyncedValues[item.id] = raw ?? ""
+            if followsSystem {
+                textDrafts[item.id] = raw ?? ""
+            }
+            guard let raw else {
                 readStates[item.id] = .systemDefault
                 return
             }
-            textDrafts[item.id] = raw
-            readStates[item.id] = .configured("")
+            readStates[item.id] = .configured(LocalizedText(verbatim: raw))
         case .numeric(let preference):
             var storedPairs: [(NumericPreferenceParameter, Double)] = []
             for parameter in preference.parameters {
@@ -1920,7 +1951,7 @@ final class PreferencesStore: ObservableObject {
                         message: error.displayMessage + recoveryMessage
                     )
                 }
-                self.refreshAll()
+                self.refreshAll(preservingDisplayedState: true)
             }
         }
     }
@@ -2178,7 +2209,8 @@ final class PreferencesStore: ObservableObject {
                         ? ""
                         : L("（写前恢复日志已保留；请先撤销后再继续修改）")
                     self.notice = self.makeNotice(message: title + suffix, canUndo: self.canUndo)
-                    self.refreshAll()
+                    self.resyncTextDrafts(for: itemIDs)
+                    self.refreshAll(preservingDisplayedState: true)
                 case .failure(let error):
                     for itemID in customizationChanges.keys {
                         self.pendingCustomizationModes[itemID] = nil
@@ -2200,7 +2232,7 @@ final class PreferencesStore: ObservableObject {
                         title: L("设置未完成"),
                         message: error.displayMessage + recoveryMessage
                     )
-                    self.refreshAll()
+                    self.refreshAll(preservingDisplayedState: true)
                 }
             }
         }
@@ -2309,6 +2341,14 @@ final class PreferencesStore: ObservableObject {
     private func titleForNewRecord(_ title: LocalizedText) -> String {
         let choice = AppLanguage(rawValue: appDefaults.object(forKey: AppLanguageStore.preferenceKey) as? String ?? "") ?? .system
         return title.rendered(language: choice.resolved())
+    }
+
+    private func resyncTextDrafts(for itemIDs: Set<String>) {
+        for item in PreferenceCatalog.items where itemIDs.contains(item.id) {
+            if case .text = item.control {
+                textDraftResyncItemIDs.insert(item.id)
+            }
+        }
     }
 
     private func makeNotice(message: LocalizedText, canUndo: Bool) -> AppNotice {

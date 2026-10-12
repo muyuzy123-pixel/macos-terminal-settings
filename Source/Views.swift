@@ -168,7 +168,7 @@ struct OverviewView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(language.text(store.isRefreshing ? "…" : "\(store.configuredCount)"))
+                        Text(language.text(store.hasLoadingStates ? "…" : "\(store.configuredCount)"))
                             .font(.system(size: 30, weight: .semibold, design: .rounded))
                         Text(language.text(L("项已显式配置")))
                             .font(.caption)
