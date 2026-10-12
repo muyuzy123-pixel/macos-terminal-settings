@@ -682,6 +682,8 @@ final class PreferencesStore: ObservableObject {
     private let restartQuietPeriod: TimeInterval
     /// Per process and item, the values the running process last loaded.
     private var restartBaselines: [String: [String: [PreferenceSnapshot]]] = [:]
+    /// Keep each durable reminder until that process's restart has returned.
+    private var inFlightRestartBaselines: [String: [String: [PreferenceSnapshot]]] = [:]
     private var restartCountdownTasks: [String: Task<Void, Never>] = [:]
     private var terminationObserver: NSObjectProtocol?
 
@@ -1612,13 +1614,17 @@ final class PreferencesStore: ObservableObject {
         guard !isWorking, pendingRestarts[process] != nil else { return }
         cancelRestartCountdown(process)
         heldRestarts.remove(process)
+        inFlightRestartBaselines[process] = restartBaselines[process]
         pendingRestarts[process] = nil
         restartBaselines[process] = nil
+        persistPendingRestarts()
         let restarter = self.restarter
         executorQueue.async { [self] in
             restarter.restart([process])
-            // Retain the durable reminder until the restart adapter returns.
-            DispatchQueue.main.async { self.persistPendingRestarts() }
+            DispatchQueue.main.async {
+                self.inFlightRestartBaselines[process] = nil
+                self.persistPendingRestarts()
+            }
         }
     }
 
@@ -2584,11 +2590,16 @@ final class PreferencesStore: ObservableObject {
 
     private func persistPendingRestarts() {
         let key = PersistedProcessRestarts.storageKey
-        guard !restartBaselines.isEmpty else {
+        var durableBaselines = inFlightRestartBaselines
+        for (process, items) in restartBaselines {
+            // New pending changes survive completion of an earlier restart.
+            durableBaselines[process, default: [:]].merge(items) { _, pending in pending }
+        }
+        guard !durableBaselines.isEmpty else {
             appDefaults.removeObject(forKey: key)
             return
         }
-        let stored = PersistedProcessRestarts(baselines: restartBaselines, heldProcesses: heldRestarts)
+        let stored = PersistedProcessRestarts(baselines: durableBaselines, heldProcesses: heldRestarts)
         guard stored.isAllowed,
               let data = try? JSONEncoder().encode(stored),
               data.count <= PersistedProcessRestarts.maximumByteCount else {
