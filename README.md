@@ -61,11 +61,11 @@ This preview is **not notarized**, so macOS may block it. Review [Apple's guidan
 
 ## Using the app
 
-Choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview.
+Choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Overview to follow the system language, or use Simplified Chinese, English, or Spanish. Browse a category or search for a setting, then read its effect, compatibility notes, and command preview. Settings without a source label are Terminal-only; System Settings enhancements and mirrors are labeled. Keyboard: ⌘1–⌘9 switch categories, ⌘R refreshes the status, and ⌥⌘Z undoes the last change (⌘Z stays with text editing).
 
 **Numeric edits update drafts first.** Expanding an editor, moving a slider, typing a value, selecting a draft preset, or loading the current value does not by itself change system preferences. **Apply** buttons submit changes; **turning on the corresponding feature may also apply the selected custom draft**. Numeric drafts and editing modes are retained between launches.
 
-**Main feature switches and menus that directly select system values execute changes when operated**—for example, Dock alignment and screenshot file format. Language selection, draft presets, and the custom-editing mode switch only update app state or drafts. Some changes restart Dock or Finder; advanced actions require confirmation and administrator authorization. Follow the effect and restart information shown for the setting.
+**Main feature switches and menus that directly select system values execute changes when operated**—for example, Dock alignment and screenshot file format. Language selection, draft presets, and the custom-editing mode switch only update app state or drafts. Some changes restart Dock or Finder; advanced actions require confirmation and administrator authorization. **Restore This Page** sits next to each category title and asks for confirmation first. Follow the effect and restart information shown for the setting.
 
 Recovery actions have distinct meanings:
 
