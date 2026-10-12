@@ -69,6 +69,10 @@ struct LocalizedText: Equatable, Comparable, Codable, ExpressibleByStringLiteral
         }
     }
 
+    /// Compiled once: every rendered message, including each search keystroke
+    /// across all languages, reuses it. NSRegularExpression is immutable.
+    private static let placeholderExpression = try! NSRegularExpression(pattern: "\\{([0-9]+)\\}")
+
     /// Stable FNV-1a keys are generated from templates, never translated text.
     static func key(for template: String) -> String {
         let hash = template.utf8.reduce(UInt64(14695981039346656037)) {
@@ -90,10 +94,9 @@ struct LocalizedText: Equatable, Comparable, Codable, ExpressibleByStringLiteral
                 let template = resources.string(key: key, language: language) ?? fallback
                 // Replace tokens in one pass: verbatim arguments must never be
                 // interpreted again as placeholders or localization keys.
-                let expression = try! NSRegularExpression(pattern: "\\{([0-9]+)\\}")
                 let ns = template as NSString
                 var result = "", cursor = 0
-                for match in expression.matches(in: template, range: NSRange(location: 0, length: ns.length)) {
+                for match in LocalizedText.placeholderExpression.matches(in: template, range: NSRange(location: 0, length: ns.length)) {
                     result += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
                     let index = Int(ns.substring(with: match.range(at: 1)))!
                     result += arguments.indices.contains(index) ? render(arguments[index]) : ns.substring(with: match.range)
