@@ -532,6 +532,17 @@ struct AppNotice: Identifiable {
     }
 }
 
+/// Dock restarts by itself once changes stop. Finder waits for the user,
+/// because relaunching it reopens windows and can interrupt a copy.
+enum ProcessRestartPolicy: Equatable {
+    case afterQuietPeriod
+    case onRequest
+
+    static func policy(for process: String) -> ProcessRestartPolicy {
+        process == "Dock" ? .afterQuietPeriod : .onRequest
+    }
+}
+
 struct PreferenceChangeFailure: LocalizedError, DisplayMessageError {
     let message: LocalizedText
     var helperOutcomeIsUnknown = false
@@ -563,6 +574,17 @@ final class PreferencesStore: ObservableObject {
     @Published private(set) var undoSummary: LocalizedText?
     @Published var alert: AppAlert?
     @Published var notice: AppNotice?
+    /// Items written since each process last restarted, keyed by process.
+    /// A process listed here may still run with its earlier preferences.
+    @Published private(set) var pendingRestarts: [String: Set<String>] = [:]
+    /// Seconds left before a quiet-period process restarts by itself.
+    @Published private(set) var restartCountdowns: [String: Int] = [:]
+    /// Quiet-period processes whose restart the user postponed.
+    @Published private(set) var heldRestarts: Set<String> = []
+    /// Values shown while a write is in flight, so a switch or menu does not
+    /// spring back to the confirmed value before the write and refresh finish.
+    @Published private(set) var displayedToggleOverrides: [String: Bool] = [:]
+    @Published private(set) var displayedChoiceOverrides: [String: String] = [:]
 
     private let executor: any PreferenceExecuting
     private let restarter: any ProcessRestarting
@@ -587,6 +609,11 @@ final class PreferencesStore: ObservableObject {
     /// from it holds unapplied input and survives unrelated refreshes.
     private var textSyncedValues: [String: String] = [:]
     private var textDraftResyncItemIDs: Set<String> = []
+    private let restartQuietPeriod: TimeInterval
+    /// Per process and item, the values the running process last loaded.
+    private var restartBaselines: [String: [String: [PreferenceSnapshot]]] = [:]
+    private var restartCountdownTasks: [String: Task<Void, Never>] = [:]
+    private var terminationObserver: NSObjectProtocol?
 
     convenience init(
         appDefaults: UserDefaults = .standard,
@@ -615,8 +642,10 @@ final class PreferencesStore: ObservableObject {
         appState: any ApplicationStateStoring,
         timeProvider: any TimeProviding,
         identifierProvider: any IdentifierProviding,
-        undoStorageURL: URL? = nil
+        undoStorageURL: URL? = nil,
+        restartQuietPeriod: TimeInterval = 3
     ) {
+        self.restartQuietPeriod = restartQuietPeriod
         self.executor = executor
         self.restarter = restarter
         self.managementProvider = managementProvider
@@ -647,6 +676,13 @@ final class PreferencesStore: ObservableObject {
         }
         loadUndoRecord()
         loadPendingPreferenceTransaction()
+        // A countdown the user was shown still restarts its process at quit.
+        // Postponed and on-request restarts stay with the user.
+        terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.restartCountingDownProcessesBeforeExit() }
+        }
     }
 
 #if TERMINAL_SETTINGS_TESTING
@@ -821,6 +857,8 @@ final class PreferencesStore: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isRefreshing = false
+                self.displayedToggleOverrides = self.displayedToggleOverrides.filter { self.busyItemIDs.contains($0.key) }
+                self.displayedChoiceOverrides = self.displayedChoiceOverrides.filter { self.busyItemIDs.contains($0.key) }
                 var errors: [LocalizedText] = []
                 switch regularResult {
                 case .success(let values):
@@ -1132,6 +1170,7 @@ final class PreferencesStore: ObservableObject {
 
     func setToggle(_ item: PreferenceItem, enabled: Bool) {
         guard canModify(item) else { return }
+        displayedToggleOverrides[item.id] = enabled
         switch item.control {
         case .toggle(let preference):
             let mutations: [PreferenceMutation]
@@ -1139,6 +1178,7 @@ final class PreferencesStore: ObservableObject {
             if enabled, isCustomizationEnabled(item), item.numericConfiguration != nil {
                 guard customizationInputErrors[item.id]?.isEmpty != false,
                       let snapshots = expectedCustomizationSnapshots(for: item) else {
+                    displayedToggleOverrides[item.id] = nil
                     return
                 }
                 mutations = customizationMutations(for: item)
@@ -1161,6 +1201,7 @@ final class PreferencesStore: ObservableObject {
         case .privilegedToggle(let preference):
             applyPrivilegedChange(item, preference: preference, enabled: enabled)
         case .choice, .text, .numeric:
+            displayedToggleOverrides[item.id] = nil
             return
         }
     }
@@ -1170,6 +1211,7 @@ final class PreferencesStore: ObservableObject {
               case .choice(let preference) = item.control,
               optionID != "custom",
               let option = preference.options.first(where: { $0.id == optionID }) else { return }
+        displayedChoiceOverrides[item.id] = optionID
         let mutation = PreferenceMutation(address: preference.address, value: option.value)
         applyChanges(
             title: L("已将“\(item.title)”设为\(option.title)"),
@@ -1279,8 +1321,8 @@ final class PreferencesStore: ObservableObject {
 
         isUndoing = true
         busyItemIDs.formUnion(itemIDs)
+        cancelRestartCountdowns(record.restartProcesses)
         let executor = self.executor
-        let restarter = self.restarter
         let managementProvider = self.managementProvider
         executorQueue.async { [self] in
             let result: Result<Void, Error>
@@ -1307,7 +1349,6 @@ final class PreferencesStore: ObservableObject {
                 beganRestore = true
                 try executor.restore(record.before)
                 try executor.verify(record.before)
-                restarter.restart(record.restartProcesses)
                 result = .success(())
             } catch {
                 let originalMessage = error.displayMessage
@@ -1326,19 +1367,18 @@ final class PreferencesStore: ObservableObject {
                         compensationMessage = L("\n恢复到撤销前状态也未完成：\(error.displayMessage)")
                     }
                 }
-                if beganRestore {
-                    restarter.restart(record.restartProcesses)
-                }
                 result = .failure(PreferenceChangeFailure(
                     message: originalMessage + compensationMessage
                 ))
             }
+            let restoreStarted = beganRestore
 
             DispatchQueue.main.async { [self] in
                 self.isUndoing = false
                 self.busyItemIDs.subtract(itemIDs)
                 switch result {
                 case .success:
+                    self.trackRestarts(itemIDs: itemIDs, previous: record.after, current: record.before)
                     if let modes = record.customizationBefore {
                         self.commitCustomizationModes(modes)
                     }
@@ -1377,8 +1417,14 @@ final class PreferencesStore: ObservableObject {
                     self.resyncTextDrafts(for: itemIDs)
                     self.refreshAll(preservingDisplayedState: true)
                 case .failure(let error):
+                    if restoreStarted {
+                        // Values may have changed in between; let the process reload.
+                        self.trackRestarts(itemIDs: itemIDs, previous: record.after, current: record.after,
+                                           conservatively: true)
+                    }
                     self.alert = self.makeAlert(title: L("无法撤销"), message: error.displayMessage)
                 }
+                self.resumeRestarts(record.restartProcesses)
             }
         }
     }
@@ -1479,6 +1525,33 @@ final class PreferencesStore: ObservableObject {
 
     func dismissNotice() {
         notice = nil
+    }
+
+    func displayedToggleValue(_ item: PreferenceItem) -> Bool {
+        displayedToggleOverrides[item.id] ?? isEnabled(item)
+    }
+
+    func displayedChoice(_ item: PreferenceItem) -> String {
+        displayedChoiceOverrides[item.id] ?? selectedChoice(item)
+    }
+
+    /// Restarts a process now so it loads the preferences written since its
+    /// last restart. The restart queues behind any write still in progress.
+    func restartPendingProcess(_ process: String) {
+        guard pendingRestarts[process] != nil else { return }
+        cancelRestartCountdown(process)
+        heldRestarts.remove(process)
+        pendingRestarts[process] = nil
+        restartBaselines[process] = nil
+        let restarter = self.restarter
+        executorQueue.async { restarter.restart([process]) }
+    }
+
+    /// Postpones a quiet-period restart until the user asks for it.
+    func holdPendingRestart(_ process: String) {
+        guard pendingRestarts[process] != nil else { return }
+        cancelRestartCountdown(process)
+        heldRestarts.insert(process)
     }
 
     /// Dismisses only the given notice, so a delayed dismissal never removes
@@ -1968,6 +2041,7 @@ final class PreferencesStore: ObservableObject {
                     let recoveryMessage = recoveryAvailable
                         ? L("\n\n写前恢复日志已保留。请使用工具栏“撤销上次更改”安全恢复后再继续。")
                         : ""
+                    self.displayedToggleOverrides[item.id] = nil
                     self.alert = self.makeAlert(
                         title: L("高级设置未完成"),
                         message: error.displayMessage + recoveryMessage
@@ -2034,8 +2108,8 @@ final class PreferencesStore: ObservableObject {
         let guardedExpected = Array(guardedExpectedByAddress.values)
         busyItemIDs.formUnion(itemIDs)
         hasPendingPreferenceTransaction = true
+        cancelRestartCountdowns(restartProcesses)
         let executor = self.executor
-        let restarter = self.restarter
         let managementProvider = self.managementProvider
         let pendingTransactionURL = self.pendingTransactionURL
         executorQueue.async { [self] in
@@ -2120,7 +2194,6 @@ final class PreferencesStore: ObservableObject {
                 }
 
                 try executor.verify(intended)
-                restarter.restart(restartProcesses)
                 let after = try executor.snapshots(for: addresses)
                 var recoveryAfter = preparedRecoveryAfter
                 for item in recoveryItems where captureRecoveryBaselineItemIDs.contains(item.id) {
@@ -2186,9 +2259,6 @@ final class PreferencesStore: ObservableObject {
                 } else {
                     retainPendingJournal = false
                 }
-                if beganWrite {
-                    restarter.restart(restartProcesses)
-                }
                 if !retainPendingJournal {
                     journal.remove(at: pendingTransactionURL)
                 }
@@ -2196,11 +2266,15 @@ final class PreferencesStore: ObservableObject {
                     message: originalMessage + rollbackMessage
                 ))
             }
+            let writeStarted = beganWrite
+            let valuesBefore = before
 
             DispatchQueue.main.async { [self] in
                 self.busyItemIDs.subtract(itemIDs)
+                defer { self.resumeRestarts(restartProcesses) }
                 switch result {
                 case .success(let record):
+                    self.trackRestarts(itemIDs: itemIDs, previous: record.before, current: record.after)
                     if let modes = record.customizationAfter {
                         self.commitCustomizationModes(modes)
                     }
@@ -2239,6 +2313,16 @@ final class PreferencesStore: ObservableObject {
                 case .failure(let error):
                     for itemID in customizationChanges.keys {
                         self.pendingCustomizationModes[itemID] = nil
+                    }
+                    if writeStarted {
+                        // Rolled back or not, the process may have seen a
+                        // partial write; let it reload.
+                        self.trackRestarts(itemIDs: itemIDs, previous: valuesBefore, current: valuesBefore,
+                                           conservatively: true)
+                    }
+                    for itemID in itemIDs {
+                        self.displayedToggleOverrides[itemID] = nil
+                        self.displayedChoiceOverrides[itemID] = nil
                     }
                     let recoveryAvailable: Bool
                     if retainPendingJournal {
@@ -2366,6 +2450,96 @@ final class PreferencesStore: ObservableObject {
     private func titleForNewRecord(_ title: LocalizedText) -> String {
         let choice = AppLanguage(rawValue: appDefaults.object(forKey: AppLanguageStore.preferenceKey) as? String ?? "") ?? .system
         return title.rendered(language: choice.resolved())
+    }
+
+    /// Records which processes must restart for their running state to match
+    /// the preferences. `previous` is what a process loaded unless the item was
+    /// already waiting; an item whose values return to that state needs no
+    /// restart. `conservatively` keeps the item waiting regardless.
+    private func trackRestarts(
+        itemIDs: Set<String>,
+        previous: [PreferenceSnapshot],
+        current: [PreferenceSnapshot],
+        conservatively: Bool = false
+    ) {
+        for item in PreferenceCatalog.items where itemIDs.contains(item.id) && !item.restartProcesses.isEmpty {
+            let addresses = Set(item.allAddresses)
+            let itemPrevious = previous.filter { addresses.contains($0.address) }
+            let itemCurrent = current.filter { addresses.contains($0.address) }
+            guard !itemCurrent.isEmpty else { continue }
+            for process in item.restartProcesses {
+                let loaded = restartBaselines[process]?[item.id] ?? itemPrevious
+                if !conservatively, Self.snapshotsMatch(loaded, itemCurrent) {
+                    restartBaselines[process]?[item.id] = nil
+                    pendingRestarts[process]?.remove(item.id)
+                    if pendingRestarts[process]?.isEmpty == true {
+                        pendingRestarts[process] = nil
+                        restartBaselines[process] = nil
+                        heldRestarts.remove(process)
+                    }
+                } else {
+                    restartBaselines[process, default: [:]][item.id] = loaded
+                    pendingRestarts[process, default: []].insert(item.id)
+                }
+            }
+        }
+    }
+
+    /// Re-arms quiet-period countdowns after a transaction on these processes.
+    private func resumeRestarts(_ processes: [String]) {
+        for process in Set(processes) {
+            cancelRestartCountdown(process)
+            guard pendingRestarts[process] != nil,
+                  ProcessRestartPolicy.policy(for: process) == .afterQuietPeriod,
+                  !heldRestarts.contains(process) else { continue }
+            let seconds = max(Int(restartQuietPeriod.rounded(.up)), 1)
+            let tick = restartQuietPeriod / Double(seconds)
+            restartCountdowns[process] = seconds
+            // The task keeps the store alive until it ends, so closing the
+            // window does not drop a restart the user was already shown.
+            restartCountdownTasks[process] = Task { @MainActor [self] in
+                for remaining in stride(from: seconds - 1, through: 0, by: -1) {
+                    try? await Task.sleep(for: .seconds(tick))
+                    guard !Task.isCancelled else { return }
+                    restartCountdowns[process] = remaining
+                }
+                restartPendingProcess(process)
+            }
+        }
+    }
+
+    private func cancelRestartCountdowns(_ processes: [String]) {
+        for process in Set(processes) { cancelRestartCountdown(process) }
+    }
+
+    private func cancelRestartCountdown(_ process: String) {
+        restartCountdownTasks[process]?.cancel()
+        restartCountdownTasks[process] = nil
+        restartCountdowns[process] = nil
+    }
+
+    private func restartCountingDownProcessesBeforeExit() {
+        let processes = restartCountdowns.keys.sorted()
+        guard !processes.isEmpty else { return }
+        processes.forEach(cancelRestartCountdown)
+        let restarter = self.restarter
+        executorQueue.sync { restarter.restart(processes) }
+    }
+
+    nonisolated private static func snapshotsMatch(
+        _ lhs: [PreferenceSnapshot],
+        _ rhs: [PreferenceSnapshot]
+    ) -> Bool {
+        let right = Dictionary(rhs.map { ($0.address, $0.value) }, uniquingKeysWith: { first, _ in first })
+        guard lhs.count == right.count else { return false }
+        return lhs.allSatisfy { snapshot in
+            guard let other = right[snapshot.address] else { return false }
+            switch (snapshot.value, other) {
+            case (nil, nil): return true
+            case (.some(let expected), .some(let actual)): return expected.matches(actual)
+            default: return false
+            }
+        }
     }
 
     private func resyncTextDrafts(for itemIDs: Set<String>) {

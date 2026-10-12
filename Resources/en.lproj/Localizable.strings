@@ -158,7 +158,6 @@
 "text.c132c7332af099a3" = "“suck” is an undocumented historical animation value. Dock may fall back to another effect depending on the OS version, Reduce Motion, or implementation changes. Successful readback does not guarantee that the animation is used.";
 "text.43b351139788846" = "Show the full path in window titles";
 "text.5c8503f9c8a876dc" = "Show the current folder's POSIX path in the Finder title bar instead of only its name.";
-"text.4298ad1a42a6c217" = "Finder restarts automatically";
 "text.8ef1d2d8d23a537f" = "Show Quit Finder in the menu";
 "text.5368929f51fa9904" = "Add a Quit item to the Finder menu. Desktop icons temporarily disappear when Finder quits.";
 "text.22cc2a4e9d6b30d8" = "Reduce Finder animations";
@@ -507,3 +506,9 @@
 "text.1deae43e601b5e42" = "Show details and commands";
 "text.9f5184caaa911480" = "Unknown";
 "text.e6e0165a175d66ff" = "Dismiss message";
+"text.e04ae7512faa8433" = "Takes effect after Finder restarts";
+"text.ff7603c724f72c17" = "{0} restarts in {1} s to apply pending changes ({2})";
+"text.eeedf8fe63570800" = "Pending changes ({0}) take effect after {1} restarts";
+"text.41240af6095a1cbd" = "Restarting Finder reopens its windows and can interrupt a copy in progress.";
+"text.4ea8edb5a171bc1a" = "Later";
+"text.f3ba7a505e2a3b12" = "Restart {0} Now";

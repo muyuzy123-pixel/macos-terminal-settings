@@ -548,7 +548,7 @@ enum PreferenceCatalog {
                 domain: "com.apple.finder", key: "_FXShowPosixPathInTitle", enabled: .bool(true)
             ),
             restartProcesses: ["Finder"],
-            effectHint: L("访达会自动重启"),
+            effectHint: L("访达重启后生效"),
             caution: .none
         ),
         PreferenceItem(
@@ -561,7 +561,7 @@ enum PreferenceCatalog {
                 domain: "com.apple.finder", key: "QuitMenuItem", enabled: .bool(true)
             ),
             restartProcesses: ["Finder"],
-            effectHint: L("访达会自动重启"),
+            effectHint: L("访达重启后生效"),
             caution: .interaction
         ),
         PreferenceItem(
@@ -574,7 +574,7 @@ enum PreferenceCatalog {
                 domain: "com.apple.finder", key: "DisableAllAnimations", enabled: .bool(true)
             ),
             restartProcesses: ["Finder"],
-            effectHint: L("访达会自动重启"),
+            effectHint: L("访达重启后生效"),
             caution: .compatibility,
             stability: .unstable(
                 L("该总开关仍可在 macOS 26.6.1 的 Finder 中检出；窗口、信息面板和现代 SwiftUI 界面不一定共用同一动画实现，因此可能只减少部分动画。")
@@ -594,7 +594,7 @@ enum PreferenceCatalog {
                 enabled: .bool(true)
             ),
             restartProcesses: ["Finder"],
-            effectHint: L("访达会自动重启"),
+            effectHint: L("访达重启后生效"),
             caution: .compatibility,
             stability: .unstable(
                 L("本机 Finder 与 Quick Look 26.6.1 二进制中未检出该键名，现代预览也可能按文件类型自行决定文字是否可选。因此此项很可能被忽略，或与系统本来就支持的选择行为没有可见差异；这里只保证布尔写入与删除恢复。")

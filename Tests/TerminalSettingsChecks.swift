@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Darwin
 import Foundation
@@ -582,6 +583,7 @@ struct TerminalSettingsChecks {
         try checkRefreshKeepsDisplayAndTextDrafts()
         try checkNoticeKinds()
         try checkUnverifiedSystemMessage()
+        try checkCoalescedRestarts()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -1714,8 +1716,19 @@ struct TerminalSettingsChecks {
             return nil
         }
         try require(
-            restartEvents == [["Dock"]],
-            "显式 Apply 必须精确重启 Dock 一次"
+            restartEvents.isEmpty && store.pendingRestarts["Dock"] == [item.id] &&
+                store.restartCountdowns["Dock"] != nil,
+            "显式 Apply 不应在写入事务中重启 Dock，而应开始合并重启倒计时"
+        )
+        let restartCheckpoint = log.checkpoint()
+        store.restartPendingProcess("Dock")
+        try waitUntil("显式 Apply 后的 Dock 重启未执行") { !log.events(since: restartCheckpoint).isEmpty }
+        try require(
+            log.events(since: restartCheckpoint).compactMap { event -> [String]? in
+                if case .restart(let processNames) = event { return processNames }
+                return nil
+            } == [["Dock"]] && store.pendingRestarts.isEmpty && store.restartCountdowns.isEmpty,
+            "显式 Apply 后 Dock 必须精确重启一次并清空待重启状态"
         )
         try require(
             !applyEvents.contains(where: { event in
@@ -1912,7 +1925,8 @@ struct TerminalSettingsChecks {
             try require(events.compactMap { event -> [String]? in
                 if case .restart(let names) = event { return names }
                 return nil
-            } == [["Dock"]], "Dock 两键成功后必须只重启一次")
+            }.isEmpty && store.pendingRestarts["Dock"] == [dock.id],
+            "Dock 两键成功后应合并等待一次重启，而非在事务中重启")
             try require(events.contains { event in
                 if case .journalPersist(_, let recordedBefore, _) = event {
                     return recordedBefore == before
@@ -1926,6 +1940,9 @@ struct TerminalSettingsChecks {
                         !store.hasPendingPreferenceTransaction,
                         "Dock 撤销未精确恢复原类型和值")
             try require(executor.value(for: magnification) == .bool(false), "Dock 意外写入放大功能开关")
+            try require(store.pendingRestarts.isEmpty && store.restartCountdowns.isEmpty &&
+                        !log.events(since: checkpoint).contains { if case .restart = $0 { return true }; return false },
+                        "撤销尚未随重启生效的 Dock 更改后不应再重启")
             try require(!log.events(since: 0).contains { event in
                 switch event {
                 case .preferenceApply(let address, _): return dock.contextAddresses.contains(address)
@@ -2647,6 +2664,122 @@ struct TerminalSettingsChecks {
             store.dismissNotice(id: notice.id)
             try require(store.notice == nil, "按 id 关闭未移除对应通知")
         }
+    }
+
+    /// Dock restarts once after changes stop, Finder waits for the user, a
+    /// change undone before its restart needs none, and switches show the
+    /// requested value while the write runs.
+    @MainActor
+    private static func checkCoalescedRestarts() throws {
+        let items = ["dock.activeOnly", "dock.allDisplaySwitcher", "finder.posixTitle"].compactMap { id in
+            PreferenceCatalog.items.first { $0.id == id }
+        }
+        var mutations: [(PreferenceAddress, PreferenceValue?)] = []
+        var restores: [PreferenceSnapshot] = []
+        for item in items {
+            guard case .toggle(let toggle) = item.control else {
+                throw CheckFailure.failed("合并重启测试项目不是开关")
+            }
+            mutations += (toggle.enableMutations + toggle.disableMutations).map { ($0.address, $0.value) }
+            restores += toggle.enableMutations.flatMap {
+                [PreferenceSnapshot(address: $0.address, value: nil), PreferenceSnapshot(address: $0.address, value: $0.value)]
+            }
+        }
+        guard items.count == 3 else { throw CheckFailure.failed("缺少合并重启测试项目") }
+        let (activeOnly, switcher, finderPath) = (items[0], items[1], items[2])
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("TerminalSettingsRestart-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let log = RecordingDependencyLog()
+        let store = PreferencesStore(
+            executor: RecordingPreferenceExecutor(values: [:], allowedMutations: mutations,
+                                                  allowedRestores: restores, log: log),
+            restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
+            powerExecutor: FailClosedPowerExecutor(log: log),
+            journal: RecordingJournal(
+                expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"), log: log
+            ),
+            appState: InMemoryApplicationState(), timeProvider: FixedTimeProvider(),
+            identifierProvider: FixedIdentifierProvider(),
+            undoStorageURL: directory.appendingPathComponent("last-undo.json"),
+            restartQuietPeriod: 0.4
+        )
+        func restarts(since checkpoint: Int) -> [[String]] {
+            log.events(since: checkpoint).compactMap { event -> [String]? in
+                if case .restart(let names) = event { return names }
+                return nil
+            }
+        }
+        store.refreshAll()
+        try waitUntil("合并重启测试的初次读取未完成") { !store.isWorking }
+
+        var checkpoint = log.checkpoint()
+        store.setToggle(activeOnly, enabled: true)
+        try require(store.displayedToggleValue(activeOnly) && !store.isEnabled(activeOnly),
+                    "写入期间开关应显示请求的新值，而系统值保持不变")
+        try waitUntil("第一项程序坞写入未完成") { !store.isWorking }
+        try require(store.pendingRestarts["Dock"] == [activeOnly.id] && store.restartCountdowns["Dock"] != nil &&
+                        restarts(since: checkpoint).isEmpty && store.displayedToggleOverrides.isEmpty,
+                    "程序坞写入后应开始倒计时而非立即重启，并清除显示覆盖")
+        store.setToggle(switcher, enabled: true)
+        try waitUntil("第二项程序坞写入未完成") { !store.isWorking }
+        try require(store.pendingRestarts["Dock"] == [activeOnly.id, switcher.id],
+                    "连续两项程序坞更改应合并等待重启")
+        try waitUntil("程序坞合并重启未发生") { !restarts(since: checkpoint).isEmpty }
+        try require(restarts(since: checkpoint) == [["Dock"]] && store.pendingRestarts.isEmpty &&
+                        store.restartCountdowns.isEmpty,
+                    "连续两项程序坞更改应只重启一次")
+
+        checkpoint = log.checkpoint()
+        store.setToggle(activeOnly, enabled: false)
+        try waitUntil("程序坞关闭写入未完成") { !store.isWorking }
+        try require(store.pendingRestarts["Dock"] == [activeOnly.id], "关闭程序坞项目后应等待重启")
+        store.undo()
+        try waitUntil("撤销未生效的程序坞更改未完成") { !store.isWorking }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        try require(store.pendingRestarts.isEmpty && store.restartCountdowns.isEmpty &&
+                        restarts(since: checkpoint).isEmpty,
+                    "撤销尚未随重启生效的更改后不应重启程序坞")
+
+        checkpoint = log.checkpoint()
+        store.setToggle(activeOnly, enabled: false)
+        try waitUntil("稍后测试的写入未完成") { !store.isWorking }
+        store.holdPendingRestart("Dock")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        try require(restarts(since: checkpoint).isEmpty && store.heldRestarts == ["Dock"] &&
+                        store.restartCountdowns.isEmpty,
+                    "选择稍后时不应自动重启程序坞")
+        store.setToggle(switcher, enabled: false)
+        try waitUntil("稍后期间的写入未完成") { !store.isWorking }
+        try require(store.restartCountdowns.isEmpty &&
+                        store.pendingRestarts["Dock"] == [activeOnly.id, switcher.id],
+                    "稍后期间的新更改不应重新开始倒计时")
+        store.restartPendingProcess("Dock")
+        try waitUntil("手动重启程序坞未执行") { !restarts(since: checkpoint).isEmpty }
+        try require(restarts(since: checkpoint) == [["Dock"]] && store.heldRestarts.isEmpty &&
+                        store.pendingRestarts.isEmpty,
+                    "手动重启应只重启一次并清除稍后状态")
+
+        checkpoint = log.checkpoint()
+        store.setToggle(finderPath, enabled: true)
+        try waitUntil("访达写入未完成") { !store.isWorking }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        try require(restarts(since: checkpoint).isEmpty && store.pendingRestarts["Finder"] == [finderPath.id] &&
+                        store.restartCountdowns["Finder"] == nil,
+                    "访达应等待用户确认后才重启")
+        store.restartPendingProcess("Finder")
+        try waitUntil("访达重启未执行") { !restarts(since: checkpoint).isEmpty }
+        try require(restarts(since: checkpoint) == [["Finder"]] && store.pendingRestarts.isEmpty,
+                    "访达应只在确认后重启一次")
+
+        checkpoint = log.checkpoint()
+        store.setToggle(activeOnly, enabled: true)
+        try waitUntil("退出测试的写入未完成") { !store.isWorking }
+        try require(store.restartCountdowns["Dock"] != nil, "退出测试前程序坞应在倒计时")
+        NotificationCenter.default.post(name: NSApplication.willTerminateNotification, object: nil)
+        try waitUntil("退出时程序坞未重启", timeout: 1) { !restarts(since: checkpoint).isEmpty }
+        try require(restarts(since: checkpoint) == [["Dock"]] && store.restartCountdowns.isEmpty,
+                    "退出时倒计时中的程序坞应立即重启一次")
     }
 
     private static func checkUnverifiedSystemMessage() throws {
