@@ -281,6 +281,33 @@ private final class RecordingRestarter: ProcessRestarting, @unchecked Sendable {
     }
 }
 
+private final class BlockingRecordingRestarter: ProcessRestarting, @unchecked Sendable {
+    private let log: RecordingDependencyLog
+    private let releases = ["Dock": DispatchSemaphore(value: 0), "Finder": DispatchSemaphore(value: 0)]
+    private let lock = NSLock()
+    private var completed: Set<String> = []
+
+    init(log: RecordingDependencyLog) { self.log = log }
+
+    func restart(_ processNames: [String]) {
+        log.append(.restart(processNames))
+        for process in processNames {
+            _ = releases[process]?.wait(timeout: .now() + 5)
+            lock.lock()
+            completed.insert(process)
+            lock.unlock()
+        }
+    }
+
+    func release(_ process: String) { releases[process]?.signal() }
+
+    func hasCompleted(_ process: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return completed.contains(process)
+    }
+}
+
 private struct RecordingManagementProvider: PreferenceManagementProviding {
     let log: RecordingDependencyLog
     var forced: Set<PreferenceAddress> = []
@@ -474,6 +501,7 @@ struct TerminalSettingsChecks {
         try checkTerminalPowerCommands()
         try checkPendingRestartPersistence()
         try checkRestartDuringInFlightWrite()
+        try checkConcurrentRestartPersistence()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -3024,6 +3052,95 @@ struct TerminalSettingsChecks {
                         uninterrupted.dismissalID(currentNoticeID: nil, taskIsCancelled: false) == nil,
                     "旧通知的计时策略可以关闭替换后的通知")
         print("Notice dismissal contracts passed: readable time, hover pause, sticky VoiceOver, warnings, cancellation, and notice identity")
+    }
+
+    @MainActor
+    private static func checkConcurrentRestartPersistence() throws {
+        let items = ["dock.activeOnly", "dock.allDisplaySwitcher", "finder.posixTitle"].map { id in
+            PreferenceCatalog.items.first { $0.id == id }!
+        }
+        let (dockA, dockB, finder) = (items[0], items[1], items[2])
+        let mutations = items.flatMap { item -> [(PreferenceAddress, PreferenceValue?)] in
+            guard case .toggle(let toggle) = item.control else { return [] }
+            return (toggle.enableMutations + toggle.disableMutations).map { ($0.address, $0.value) }
+        }
+        for writesAnotherItem in [false, true] {
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("TerminalSettingsConcurrentRestart-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let log = RecordingDependencyLog()
+            let state = InMemoryApplicationState()
+            let executor = RecordingPreferenceExecutor(values: [:], allowedMutations: mutations, log: log)
+            let restarter = BlockingRecordingRestarter(log: log)
+            // A failed assertion must release both blocked adapters too.
+            defer { restarter.release("Dock"); restarter.release("Finder") }
+            let journal = RecordingJournal(
+                expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"), log: log
+            )
+            func makeStore(restarter: any ProcessRestarting) -> PreferencesStore {
+                PreferencesStore(executor: executor, restarter: restarter,
+                    managementProvider: RecordingManagementProvider(log: log), powerExecutor: FailClosedPowerExecutor(log: log),
+                    journal: journal, appState: state, timeProvider: FixedTimeProvider(),
+                    identifierProvider: FixedIdentifierProvider(), undoStorageURL: directory.appendingPathComponent("last-undo.json"),
+                    restartQuietPeriod: 0.2)
+            }
+            let key = PersistedProcessRestarts.storageKey
+            func persisted() -> PersistedProcessRestarts? {
+                guard let data = state.data(forKey: key) else { return nil }
+                return try? JSONDecoder().decode(PersistedProcessRestarts.self, from: data)
+            }
+            let store = makeStore(restarter: restarter)
+            store.refreshAll()
+            try waitUntil("并行重启测试初次读取未完成") { !store.isWorking }
+            store.setToggle(dockA, enabled: true)
+            try waitUntil("并行重启测试程序坞写入未完成") { !store.isWorking }
+            store.holdPendingRestart("Dock")
+            store.setToggle(finder, enabled: true)
+            try waitUntil("并行重启测试访达写入未完成") { !store.isWorking }
+            store.restartPendingProcess("Dock")
+            store.restartPendingProcess("Finder")
+            try waitUntil("第一项阻塞重启未开始") {
+                log.events(since: 0).contains { if case .restart(let names) = $0 { return names == ["Dock"] }; return false }
+            }
+            try require(Set(persisted()?.baselines.keys.map { $0 } ?? []) == ["Dock", "Finder"],
+                        "排队重启必须保留每个进程尚未返回的持久化 baseline")
+            restarter.release("Dock")
+            try waitUntil("第二项阻塞重启未开始") {
+                restarter.hasCompleted("Dock") && log.events(since: 0).contains {
+                    if case .restart(let names) = $0 { return names == ["Finder"] }; return false
+                }
+            }
+            // Let Dock's main-queue completion publish its persisted update.
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            try require(!restarter.hasCompleted("Finder") &&
+                        Set(persisted()?.baselines.keys.map { $0 } ?? []) == ["Finder"],
+                        "第一项重启完成不能清除第二项仍在执行的持久化提醒")
+            let reopened = makeStore(restarter: RecordingRestarter(log: log))
+            try require(reopened.pendingRestarts == ["Finder": [finder.id]] && reopened.restartCountdowns.isEmpty,
+                        "第二项重启尚未返回时重建 store 必须保留其手动入口")
+            if writesAnotherItem {
+                store.setToggle(dockB, enabled: true)
+                try require(store.isWorking, "后续写入必须在阻塞的访达重启后排队")
+            }
+            restarter.release("Finder")
+            try waitUntil("第二项重启返回后状态处理未完成") {
+                restarter.hasCompleted("Finder") && !store.isWorking &&
+                    (writesAnotherItem ? store.pendingRestarts["Dock"] == [dockB.id] : state.object(forKey: key) == nil)
+            }
+            if writesAnotherItem {
+                store.holdPendingRestart("Dock")
+                try require(Set(persisted()?.baselines["Dock"]?.keys.map { $0 } ?? []) == [dockB.id] &&
+                            persisted()?.baselines["Finder"] == nil,
+                            "旧重启完成不得清除新写入产生的持久化 pending 状态")
+                // Complete the new request and confirm final cleanup too.
+                restarter.release("Dock")
+                store.restartPendingProcess("Dock")
+                try waitUntil("新写入的重启完成后未清理持久化数据") { state.object(forKey: key) == nil }
+            } else {
+                try require(store.pendingRestarts.isEmpty && state.object(forKey: key) == nil,
+                            "所有重启均完成后才能移除最后一项持久化提醒")
+            }
+        }
     }
 
     private static func checkUnverifiedSystemMessage() throws {
