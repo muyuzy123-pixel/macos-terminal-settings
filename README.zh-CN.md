@@ -8,13 +8,22 @@
 
 **语言版本说明：** 预览下载包已包含英文、简体中文和西班牙语。**西班牙语译文尚未经母语者审阅。**
 
+**已发布下载包与开发源码的行为不同：**
+
+| 版本渠道 | 行为 |
+| --- | --- |
+| 已发布 `v1.9.0-preview.2`，应用 1.9.0（Build 18） | 使用原有界面；需要时立即重启 Dock/Finder；高级电源项仍可在应用内请求管理员授权后修改。 |
+| 本分支尚未发布的开发源码 | 包含草稿／通知修复和快捷键，延迟 Dock/Finder 重启；电源项改为提供终端命令，应用不请求管理员授权。 |
+
+下方功能、使用与权限章节描述的是**开发源码**；下载章节与[标签对应的使用说明](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/README.zh-CN.md)描述已发布安装包。开发源码的版本字段仍为 1.9.0 / Build 18，测试构建应同时记录来源提交。现有 Release 附件没有被替换。
+
 当前分发状态与已验证范围见[发布状态](docs/RELEASE_STATUS.md)。
 
 ![简体中文程序坞数值控件：系统当前值为 35 与 37 点，尚未应用的草稿为 48 与 64 点](docs/images/dock-numeric-controls-zh-Hans.png)
 
 *隔离预览副本的简体中文界面，以原生 2× 分辨率捕获。48/64 点为尚未应用的草稿，系统当前值仍为 35/37 点。*
 
-## 可以调整什么
+## 开发源码的功能
 
 应用包含 **8 个分类、40 项设置**，其中有 **7 组数值控件、10 个参数**。
 
@@ -45,7 +54,7 @@
 | 本机验证环境 | macOS 26.6.2；尚未完成真实 macOS 14 设备验收 |
 | 分发状态 | 预览版，Hardened Runtime + ad-hoc 签名；无 Developer ID 签名与 Apple 公证 |
 
-本版本已通过契约、构建、归档和隔离界面冒烟检查；此前的隔离集成测试及更完整的定向界面验收结果在[发布状态](docs/RELEASE_STATUS.md)中单独记录。这些检查不代表所有界面效果均已完成实机验收；完整范围见[测试说明](docs/TESTING.md)。
+本版本已通过契约、构建、归档和隔离界面冒烟检查；此前的隔离集成测试及更完整的定向界面验收结果在[发布状态](docs/RELEASE_STATUS.md)中单独记录。这些检查不代表已发布预览版的所有可见效果或真实管理员写入均已完成实机验收；完整范围见[测试说明](docs/TESTING.md)。
 
 1. 打开[预览版发布页](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2)，从 **Assets** 下载 `TerminalSettings.zip` 和 `SHA256SUMS`。发布页另附 `release-manifest.json`，记录构建与核验信息。
 2. 在这两个文件所在的文件夹中校验安装包：
@@ -59,7 +68,7 @@
 
 当前预览版**未经过公证**，macOS 可能阻止启动。请先阅读 [Apple 关于安全打开 App 的说明](https://support.apple.com/zh-cn/102445)和项目的[安全边界](SECURITY.md)，再决定是否运行。校验和一致只说明下载文件与发布文件一致，不等同于软件安全认证。
 
-## 基本使用
+## 开发构建的使用
 
 在概览中通过 **语言 / Language**（西语界面中显示为 **Idioma / Language**）选择跟随系统、简体中文、English 或 Español。进入分类或搜索功能后，先查看作用、兼容说明和命令预览。没有来源标记的设置均为「仅终端」，「系统设置增强」与「系统设置镜像」会单独标出。键盘：⌘1–⌘9 切换分类，⌘R 刷新状态，⌥⌘Z 撤销上次更改（⌘Z 仍用于文本编辑）。
 
@@ -79,7 +88,7 @@
 
 删除 `TerminalSettings.app` 不会自动撤销已应用的设置，也不会由本应用清除本地偏好和恢复记录。若希望还原，请先使用可用的撤销或逐项恢复功能；仍有未完成事务时应保留恢复数据，直接删除日志并不能安全地解决问题。
 
-## 权限与本地数据
+## 开发源码的权限与本地数据
 
 普通功能操作当前用户偏好，必要时使用当前主机作用域。高级分类只读取 `ttyskeepawake`、`proximitywake`、`acwake` 三个 `pmset` 布尔键，应用不启动任何特权进程。
 
@@ -87,7 +96,7 @@
 
 语言、数值草稿和逐项接管前恢复基线保存在应用偏好中；上次撤销文件与待恢复事务日志保存在本机 Application Support。Bundle ID 保持为 `com.codex.TerminalSettings`，以兼容已有记录。
 
-早期版本通过已弃用的 `AuthorizationExecuteWithPrivileges` API 写入这些电源设置，本版本已移除该路径；取得 Developer ID 签名后可能改用签名 helper。若早期版本留下了高级撤销记录或未完成的电源更改，应用会显示恢复到更改前状态的终端命令，并在**重新检查**确认状态一致后移除记录。其他限制见 [SECURITY.md](SECURITY.md)。
+已发布的 `v1.9.0-preview.2` 仍通过已弃用的 `AuthorizationExecuteWithPrivileges` API 写入这些电源设置，尚未发布的开发源码已移除该路径；取得 Developer ID 签名后可能改用签名 helper。若早期版本留下了高级撤销记录或未完成的电源更改，应用会显示恢复到更改前状态的终端命令，并在**重新检查**确认状态一致后移除记录。其他限制见 [SECURITY.md](SECURITY.md)。
 
 ## 从源码构建
 
@@ -99,7 +108,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-上述命令构建默认分支（`main`）的当前源码。如需构建当前三语预览版对应的源码，请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.2`。检出同一标签不代表生成的 ZIP 校验和必然相同。
+上述命令构建默认分支（`main`）的当前源码。PR #5 尚未合并时，若要测试其开发源码，请在克隆后、构建前执行 `git fetch origin pull/5/head` 和 `git switch --detach FETCH_HEAD`。如需构建已发布预览版（包括其原有管理员授权行为），请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.2`。检出同一标签不代表生成的 ZIP 校验和必然相同。
 
 构建生成 `TerminalSettings.app` 和 `TerminalSettings.zip`。构建失败时先核对上述工具链要求和[贡献说明](CONTRIBUTING.md)，反馈时附上已脱敏的错误与工具链版本。运行契约测试与独立解包核验：
 
