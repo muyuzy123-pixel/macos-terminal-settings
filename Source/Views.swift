@@ -1,12 +1,32 @@
 import AppKit
 import SwiftUI
 
+/// Menu bar actions for the focused window. ContentView publishes them so
+/// keyboard shortcuts act on that window's store and selection.
+struct WindowCommandActions {
+    let canUndo: Bool
+    let canRefresh: Bool
+    let undo: () -> Void
+    let refresh: () -> Void
+    let select: (SettingsCategory) -> Void
+}
+
+private struct WindowCommandActionsKey: FocusedValueKey {
+    typealias Value = WindowCommandActions
+}
+
+extension FocusedValues {
+    var windowCommandActions: WindowCommandActions? {
+        get { self[WindowCommandActionsKey.self] }
+        set { self[WindowCommandActionsKey.self] = newValue }
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var language: AppLanguageStore
     @StateObject private var store = PreferencesStore()
     @State private var selection: SettingsCategory? = .overview
     @State private var searchText = ""
-    @State private var categoryPendingReset: SettingsCategory?
 
     private var selectedCategory: SettingsCategory {
         selection ?? .overview
@@ -22,7 +42,7 @@ struct ContentView: View {
                 NoticeHost(
                     notice: store.notice,
                     undo: store.undo,
-                    dismiss: store.dismissNotice
+                    dismiss: { store.dismissNotice(id: $0) }
                 )
             }
         }
@@ -50,45 +70,24 @@ struct ContentView: View {
                 }
                 .disabled(store.isWorking)
                 .help(language.text(L("重新读取系统偏好")))
-
-                if selectedCategory != .overview &&
-                    selectedCategory != .advanced &&
-                    searchText.isEmpty {
-                    Button {
-                        categoryPendingReset = selectedCategory
-                    } label: {
-                        Label(language.text(L("恢复本页设置")), systemImage: "arrow.counterclockwise")
-                    }
-                    .disabled(store.isWorking)
-                    .help(language.text(L("按每项声明的恢复策略操作；隐藏扩展会删除当前用户显式值")))
-                }
             }
         }
+        .focusedSceneValue(\.windowCommandActions, WindowCommandActions(
+            canUndo: store.canUndo && !store.isWorking,
+            canRefresh: !store.isWorking,
+            undo: store.undo,
+            refresh: { store.refreshAll() },
+            select: { category in
+                searchText = ""
+                selection = category
+            }
+        ))
         .alert(item: $store.alert) { alert in
             Alert(
                 title: Text(language.text(alert.title)),
                 message: Text(language.text(alert.message)),
                 dismissButton: .default(Text(language.text(L("好"))))
             )
-        }
-        .confirmationDialog(language.text(L("按逐项策略恢复“\(categoryPendingReset?.title ?? "")”设置？")),
-            isPresented: Binding(
-                get: { categoryPendingReset != nil },
-                set: { if !$0 { categoryPendingReset = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(language.text(L("继续恢复")), role: .destructive) {
-                if let category = categoryPendingReset {
-                    store.resetCategory(category)
-                }
-                categoryPendingReset = nil
-            }
-            Button(language.text(L("取消")), role: .cancel) {
-                categoryPendingReset = nil
-            }
-        } message: {
-            Text(language.text(L("隐藏扩展会删除当前用户域中的显式值，即使它原本由其他工具或用户命令写入；系统设置增强或镜像只恢复本应用接管前保存的快照。未被本应用接管的增强或镜像项目不会改动。")))
         }
         .onAppear {
             store.refreshAll()
@@ -178,6 +177,8 @@ struct OverviewView: View {
 
                 LanguageSettingsRow()
 
+                UnverifiedSystemBanner(items: PreferenceCatalog.items)
+
                 InfoCard(
                     symbol: "checkmark.shield.fill",
                     tint: .green,
@@ -235,11 +236,26 @@ struct CategoryView: View {
     @EnvironmentObject private var language: AppLanguageStore
     let category: SettingsCategory
     @ObservedObject var store: PreferencesStore
+    @State private var asksToRestorePage = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                CategoryHeader(category: category, count: PreferenceCatalog.items(in: category).count)
+                HStack(alignment: .center, spacing: 12) {
+                    CategoryHeader(category: category, count: PreferenceCatalog.items(in: category).count)
+                    if category != .advanced {
+                        Button {
+                            asksToRestorePage = true
+                        } label: {
+                            Label(language.text(L("恢复本页设置")), systemImage: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.isWorking)
+                        .help(language.text(L("按每项声明的恢复策略操作；隐藏扩展会删除当前用户显式值")))
+                        .accessibilityIdentifier("category.restore.\(category.rawValue)")
+                    }
+                }
+                UnverifiedSystemBanner(items: PreferenceCatalog.items(in: category))
                 if category == .advanced {
                     InfoCard(
                         symbol: "lock.shield.fill",
@@ -272,6 +288,17 @@ struct CategoryView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .confirmationDialog(language.text(L("按逐项策略恢复“\(category.title)”设置？")),
+            isPresented: $asksToRestorePage,
+            titleVisibility: .visible
+        ) {
+            Button(language.text(L("继续恢复")), role: .destructive) {
+                store.resetCategory(category)
+            }
+            Button(language.text(L("取消")), role: .cancel) {}
+        } message: {
+            Text(language.text(L("隐藏扩展会删除当前用户域中的显式值，即使它原本由其他工具或用户命令写入；系统设置增强或镜像只恢复本应用接管前保存的快照。未被本应用接管的增强或镜像项目不会改动。")))
+        }
     }
 }
 
@@ -327,6 +354,8 @@ struct SearchResultsView: View {
                     }
                 }
 
+                UnverifiedSystemBanner(items: results)
+
                 if results.isEmpty {
                     ContentUnavailableView(language.text(L("没有匹配的设置")),
                         systemImage: "slider.horizontal.3",
@@ -373,13 +402,23 @@ struct PreferenceRow: View {
         store.state(for: item)
     }
 
-    private var compatibilityWarning: LocalizedText? {
-        guard case .unverified(let message) = item.support() else { return nil }
-        return message
-    }
-
     private var managementState: PreferenceManagementState {
         store.managementState(for: item)
+    }
+
+    private var hasClassificationBadges: Bool {
+        item.source.exposure != .terminalOnly || managementState.label != nil ||
+            item.caution.label != nil || item.stability.label != nil
+    }
+
+    private var effectHint: some View {
+        Label(language.text(item.effectHint),
+            systemImage: item.requiresAdministrator
+                ? "lock.shield"
+                : "arrow.triangle.2.circlepath"
+        )
+        .foregroundStyle(.tertiary)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var isFirstClassNumeric: Bool {
@@ -415,15 +454,13 @@ struct PreferenceRow: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language.text(item.title))
                             .font(.headline)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                PreferenceClassificationBadge(
-                                    label: item.source.exposure.label,
-                                    color: sourceColor
-                                )
-                                if let enhancementKind = item.source.enhancementKind {
+                        if hasClassificationBadges {
+                            // Terminal-only is the catalog default and stays in
+                            // the details; the running-system check is a page banner.
+                            BadgeFlowLayout(spacing: 6) {
+                                if item.source.exposure != .terminalOnly {
                                     PreferenceClassificationBadge(
-                                        label: enhancementKind.label,
+                                        label: item.source.detailLabel,
                                         color: sourceColor
                                     )
                                 }
@@ -434,10 +471,6 @@ struct PreferenceRow: View {
                                     )
                                     .help(language.text(managementHelp))
                                 }
-                            }
-                            if item.caution.label != nil || item.stability.label != nil ||
-                                compatibilityWarning != nil {
-                                HStack(spacing: 6) {
                                 if let label = item.caution.label {
                                     PreferenceClassificationBadge(
                                         label: label,
@@ -449,15 +482,6 @@ struct PreferenceRow: View {
                                         label: label,
                                         color: .orange
                                     )
-                                }
-                                if let compatibilityWarning {
-                                    PreferenceClassificationBadge(
-                                        label: L("当前系统未验证"),
-                                        color: .orange
-                                    )
-                                    .help(language.text(compatibilityWarning))
-                                    .accessibilityLabel(language.text(L("当前系统未验证：\(compatibilityWarning)")))
-                                }
                                 }
                             }
                         }
@@ -472,14 +496,17 @@ struct PreferenceRow: View {
                             .foregroundStyle(.purple)
                             .accessibilityIdentifier("preference.contextLock.\(item.id)")
                     }
-                    HStack(spacing: 8) {
-                        PreferenceStatusBadge(state: state)
-                        Label(language.text(item.effectHint),
-                            systemImage: item.requiresAdministrator
-                                ? "lock.shield"
-                                : "arrow.triangle.2.circlepath"
-                        )
-                            .foregroundStyle(.tertiary)
+                    // Side by side when both fit on one line; otherwise stacked,
+                    // so neither the current value nor the effect is truncated.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            PreferenceStatusBadge(state: state)
+                            effectHint
+                        }
+                        VStack(alignment: .leading, spacing: 5) {
+                            PreferenceStatusBadge(state: state)
+                            effectHint
+                        }
                     }
                     .font(.caption)
                 }
@@ -606,6 +633,14 @@ struct PreferenceRow: View {
         }
     }
 
+    private func selectedChoiceTitle(_ preference: ChoicePreference) -> LocalizedText {
+        let selected = store.selectedChoice(item)
+        if let option = preference.options.first(where: { $0.id == selected }) {
+            return option.title
+        }
+        return L("当前：\(store.customChoiceValues[item.id].map { LocalizedText(verbatim: $0) } ?? L("未知"))")
+    }
+
     private var cautionColor: Color {
         switch item.caution {
         case .interaction: return .orange
@@ -672,7 +707,8 @@ struct PreferenceRow: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            .frame(width: 130)
+            .help(language.text(selectedChoiceTitle(preference)))
+            .modifier(ClampedWidth(minWidth: 130, maxWidth: 220))
             .accessibilityLabel(language.text(item.title))
             .accessibilityIdentifier("preference.choice.\(item.id)")
         case .text(let preference):
@@ -727,7 +763,7 @@ struct PreferenceClassificationBadge: View {
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.11)))
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(color.opacity(0.11)))
             .accessibilityLabel(language.text(L("分类标记：\(label)")))
     }
 }
@@ -1273,17 +1309,42 @@ private struct NoticeHost: View {
     @EnvironmentObject private var language: AppLanguageStore
     let notice: AppNotice?
     let undo: () -> Void
-    let dismiss: () -> Void
+    let dismiss: (UUID) -> Void
+    @State private var isHovering = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             if let notice {
-                NoticeView(notice: notice, undo: undo, dismiss: dismiss)
+                NoticeView(notice: notice, undo: undo, dismiss: { dismiss(notice.id) })
+                    .onHover { isHovering = $0 }
+                    .frame(maxWidth: 680)
+                    .padding(.horizontal, 20)
                     .padding(.bottom, 18)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.18), value: notice?.id)
+        .task(id: notice?.id) {
+            guard let notice else { return }
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [
+                    .announcement: language.text(notice.message),
+                    .priority: NSAccessibilityPriorityLevel.high.rawValue
+                ]
+            )
+            // Confirmations clear themselves after a pause, held while the
+            // pointer rests on them. Warnings, and every notice while
+            // VoiceOver runs, stay until closed.
+            guard notice.kind == .success, !NSWorkspace.shared.isVoiceOverEnabled else { return }
+            try? await Task.sleep(for: .seconds(6))
+            while isHovering, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            guard !Task.isCancelled else { return }
+            dismiss(notice.id)
+        }
     }
 }
 
@@ -1315,13 +1376,12 @@ struct PreferenceStatusBadge: View {
 
     var body: some View {
         Label(language.text(state.label), systemImage: symbol)
-            .help(language.text(state.label))
             .font(.caption2.weight(.medium))
             .foregroundStyle(color)
-            .lineLimit(1)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(Capsule().fill(color.opacity(0.1)))
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(color.opacity(0.1)))
             .accessibilityLabel(language.text(L("当前状态：\(state.label)")))
     }
 }
@@ -1621,6 +1681,100 @@ struct InfoCard: View {
     }
 }
 
+/// Shown once per page while the running macOS is newer than the verified one.
+struct UnverifiedSystemBanner: View {
+    let items: [PreferenceItem]
+
+    var body: some View {
+        if let message = PreferenceCatalog.unverifiedMessage(for: items) {
+            InfoCard(
+                symbol: "questionmark.circle.fill",
+                tint: .orange,
+                title: L("当前系统未验证"),
+                detail: message
+            )
+        }
+    }
+}
+
+/// Lays badges out left to right and wraps them onto further lines instead
+/// of truncating or overflowing a narrow row.
+struct BadgeFlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    private struct Line {
+        var items: [(index: Int, size: CGSize)] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lines = arrange(maxWidth: proposal.width ?? .infinity, subviews: subviews)
+        let height = lines.map(\.height).reduce(0, +) + spacing * CGFloat(max(lines.count - 1, 0))
+        return CGSize(width: lines.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in arrange(maxWidth: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for item in line.items {
+                subviews[item.index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
+            }
+            y += line.height + spacing
+        }
+    }
+
+    private func arrange(maxWidth: CGFloat, subviews: Subviews) -> [Line] {
+        var lines: [Line] = []
+        var line = Line()
+        for index in subviews.indices {
+            let ideal = subviews[index].sizeThatFits(.unspecified)
+            // A badge wider than the whole line wraps its own text instead.
+            let size = ideal.width > maxWidth
+                ? subviews[index].sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+                : ideal
+            if !line.items.isEmpty, line.width + spacing + size.width > maxWidth {
+                lines.append(line)
+                line = Line()
+            }
+            line.width += (line.items.isEmpty ? 0 : spacing) + size.width
+            line.height = max(line.height, size.height)
+            line.items.append((index, size))
+        }
+        if !line.items.isEmpty { lines.append(line) }
+        return lines
+    }
+}
+
+/// Gives a control its natural width within bounds, so longer localized
+/// titles widen it and only titles beyond `maxWidth` still truncate.
+struct ClampedWidth: ViewModifier {
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        ClampedWidthLayout(minWidth: minWidth, maxWidth: maxWidth) { content }
+    }
+}
+
+private struct ClampedWidthLayout: Layout {
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let subview = subviews.first else { return .zero }
+        let width = min(max(subview.sizeThatFits(.unspecified).width, minWidth), maxWidth)
+        let height = subview.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)).height
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
 struct UndoRecoveryCard: View {
     @EnvironmentObject private var language: AppLanguageStore
     let summary: LocalizedText
@@ -1662,12 +1816,16 @@ struct NoticeView: View {
     let undo: () -> Void
     let dismiss: () -> Void
 
+    private var isWarning: Bool { notice.kind == .warning }
+
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+            Image(systemName: isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                .foregroundStyle(isWarning ? Color.orange : Color.green)
+                .accessibilityHidden(true)
             Text(language.text(notice.message))
                 .font(.subheadline.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
             if notice.canUndo {
                 Button(language.text(L("撤销")), action: undo)
                     .buttonStyle(.borderless)
@@ -1682,8 +1840,12 @@ struct NoticeView: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 0.6))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(isWarning ? Color.orange.opacity(0.6) : Color(nsColor: .separatorColor).opacity(0.55),
+                        lineWidth: isWarning ? 1 : 0.6)
+        )
         .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
     }
 }

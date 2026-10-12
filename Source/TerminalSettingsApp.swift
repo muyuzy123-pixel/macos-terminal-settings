@@ -16,6 +16,9 @@ struct TerminalSettingsApp: App {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1060, height: 760)
+        .commands {
+            WindowCommands(language: language)
+        }
 
         Settings {
             VStack(spacing: 12) {
@@ -34,6 +37,32 @@ struct TerminalSettingsApp: App {
             }
             .frame(width: 360, height: 170)
             .environmentObject(language)
+        }
+    }
+}
+
+/// Keyboard access to the toolbar actions and categories. ⌘Z stays with
+/// text editing, so undoing a system change uses ⌥⌘Z.
+struct WindowCommands: Commands {
+    @ObservedObject var language: AppLanguageStore
+    @FocusedValue(\.windowCommandActions) private var actions
+
+    var body: some Commands {
+        CommandGroup(after: .undoRedo) {
+            Button(language.text(L("撤销上次更改"))) { actions?.undo() }
+                .keyboardShortcut("z", modifiers: [.command, .option])
+                .disabled(actions?.canUndo != true)
+        }
+        CommandGroup(after: .sidebar) {
+            Button(language.text(L("刷新状态"))) { actions?.refresh() }
+                .keyboardShortcut("r")
+                .disabled(actions?.canRefresh != true)
+            Divider()
+            ForEach(Array(SettingsCategory.allCases.enumerated()), id: \.element) { index, category in
+                Button(language.text(category.title)) { actions?.select(category) }
+                    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))))
+                    .disabled(actions == nil)
+            }
         }
     }
 }
