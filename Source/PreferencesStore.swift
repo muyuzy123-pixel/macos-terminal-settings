@@ -532,6 +532,12 @@ struct AppNotice: Identifiable {
     }
 }
 
+/// Restore commands for a power record left by an earlier version.
+struct LegacyPowerRecord: Equatable {
+    let isPending: Bool
+    let restoreCommands: [String]
+}
+
 /// Dock restarts by itself once changes stop. Finder waits for the user,
 /// because relaunching it reopens windows and can interrupt a copy.
 enum ProcessRestartPolicy: Equatable {
@@ -655,11 +661,14 @@ final class PreferencesStore: ObservableObject {
     /// spring back to the confirmed value before the write and refresh finish.
     @Published private(set) var displayedToggleOverrides: [String: Bool] = [:]
     @Published private(set) var displayedChoiceOverrides: [String: String] = [:]
+    /// Set when the last check found an earlier version's power change still
+    /// fully applied, so the user may keep it and remove the record.
+    @Published private(set) var legacyPowerCanKeepCurrent = false
 
     private let executor: any PreferenceExecuting
     private let restarter: any ProcessRestarting
     private let managementProvider: any PreferenceManagementProviding
-    private let powerExecutor: any PowerSettingsExecuting
+    private let powerReader: any PowerSettingsReading
     private let journal: any PreferenceTransactionJournaling
     private let timeProvider: any TimeProviding
     private let identifierProvider: any IdentifierProviding
@@ -696,7 +705,7 @@ final class PreferencesStore: ObservableObject {
             executor: executor,
             restarter: executor,
             managementProvider: SystemPreferenceManagementProvider(),
-            powerExecutor: PowerSettingsExecutor(),
+            powerReader: PowerSettingsReader(),
             journal: FilePreferenceTransactionJournal(),
             appState: appDefaults,
             timeProvider: SystemTimeProvider(),
@@ -709,7 +718,7 @@ final class PreferencesStore: ObservableObject {
         executor: any PreferenceExecuting,
         restarter: any ProcessRestarting,
         managementProvider: any PreferenceManagementProviding,
-        powerExecutor: any PowerSettingsExecuting,
+        powerReader: any PowerSettingsReading,
         journal: any PreferenceTransactionJournaling,
         appState: any ApplicationStateStoring,
         timeProvider: any TimeProviding,
@@ -721,7 +730,7 @@ final class PreferencesStore: ObservableObject {
         self.executor = executor
         self.restarter = restarter
         self.managementProvider = managementProvider
-        self.powerExecutor = powerExecutor
+        self.powerReader = powerReader
         self.journal = journal
         self.timeProvider = timeProvider
         self.identifierProvider = identifierProvider
@@ -779,7 +788,7 @@ final class PreferencesStore: ObservableObject {
 
     var canUndo: Bool {
         guard !pendingJournalIsUnreadable else { return false }
-        guard let undoRecord else { return false }
+        guard let undoRecord, undoRecord.powerBefore?.isEmpty ?? true else { return false }
         let affectedAddresses = Set((undoRecord.before + undoRecord.after).map(\.address))
         return PreferenceCatalog.items
             .filter { !Set($0.allAddresses).isDisjoint(with: affectedAddresses) }
@@ -900,7 +909,7 @@ final class PreferencesStore: ObservableObject {
         let powerKeys = privilegedItems.compactMap(\.privilegedKey)
         let executor = self.executor
         let managementProvider = self.managementProvider
-        let powerExecutor = self.powerExecutor
+        let powerReader = self.powerReader
         executorQueue.async { [weak self] in
             let regularResult: Result<[PreferenceAddress: PreferenceValue], Error>
             do {
@@ -922,7 +931,7 @@ final class PreferencesStore: ObservableObject {
             }
             let powerResult: Result<[PowerSettingSnapshot], Error>
             do {
-                powerResult = .success(try powerExecutor.snapshots(for: powerKeys))
+                powerResult = .success(try powerReader.snapshots(for: powerKeys))
             } catch {
                 powerResult = .failure(error)
             }
@@ -1271,9 +1280,8 @@ final class PreferencesStore: ObservableObject {
                 recordUndo: true,
                 expectedCurrent: expectedCurrent
             )
-        case .privilegedToggle(let preference):
-            applyPrivilegedChange(item, preference: preference, enabled: enabled)
-        case .choice, .text, .numeric:
+        case .privilegedToggle, .choice, .text, .numeric:
+            // Power settings change only through the copied Terminal commands.
             displayedToggleOverrides[item.id] = nil
             return
         }
@@ -1382,12 +1390,6 @@ final class PreferencesStore: ObservableObject {
 
     func undo() {
         guard !isWorking, canUndo, let record = undoRecord else { return }
-        if let powerBefore = record.powerBefore,
-           let powerAfter = record.powerAfter,
-           !powerBefore.isEmpty {
-            undoPowerChange(record, before: powerBefore, after: powerAfter)
-            return
-        }
         let itemIDs = Set(PreferenceCatalog.items.filter {
             !Set($0.allAddresses).isDisjoint(with: Set(record.before.map(\.address)))
         }.map(\.id))
@@ -1502,100 +1504,6 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
-    private func undoPowerChange(
-        _ record: UndoRecord,
-        before: [PowerSettingSnapshot],
-        after: [PowerSettingSnapshot]
-    ) {
-        let keys = Set(before.map(\.key))
-        let itemIDs = Set<String>(PreferenceCatalog.items.compactMap { item -> String? in
-            guard let key = item.privilegedKey, keys.contains(key) else { return nil }
-            return item.id
-        })
-
-        isUndoing = true
-        busyItemIDs.formUnion(itemIDs)
-        let powerExecutor = self.powerExecutor
-        executorQueue.async { [self] in
-            let result: Result<Void, Error>
-            do {
-                try powerExecutor.ensureCurrentMatchesAny(
-                    [before, after],
-                    operation: L("撤销")
-                )
-                try powerExecutor.authorized { authorization in
-                    var beganRestore = false
-                    do {
-                        // Authorization may keep the sheet open for an
-                        // arbitrary time. Recheck after it completes so an
-                        // external pmset change during that window is never
-                        // overwritten by a stale snapshot.
-                        try powerExecutor.ensureCurrentMatchesAny(
-                            [before, after],
-                            operation: L("撤销")
-                        )
-                        beganRestore = true
-                        try powerExecutor.restore(before, authorization: authorization)
-                        try powerExecutor.verify(before)
-                    } catch {
-                        let originalMessage = error.displayMessage
-                        var compensationMessage: LocalizedText = ""
-                        if beganRestore {
-                            do {
-                                let conflicts = try powerExecutor
-                                    .restorePreservingExternalChanges(
-                                        after,
-                                        whenCurrentMatches: [before, after],
-                                        authorization: authorization
-                                    )
-                                if !conflicts.isEmpty {
-                                    compensationMessage = L("\n撤销期间检测到外部新值，") +
-                                        L("已保留而未覆盖：") + conflicts.joined(separator: "、")
-                                }
-                            } catch {
-                                compensationMessage = L("\n恢复到撤销前状态也未完成：") +
-                                    error.displayMessage
-                            }
-                        }
-                        throw PreferenceChangeFailure(
-                            message: originalMessage + compensationMessage
-                        )
-                    }
-                }
-                result = .success(())
-            } catch {
-                result = .failure(error)
-            }
-
-            DispatchQueue.main.async { [self] in
-                self.isUndoing = false
-                self.busyItemIDs.subtract(itemIDs)
-                switch result {
-                case .success:
-                    if self.clearPendingPreferenceTransaction() {
-                        self.clearUndoRecord()
-                        self.notice = self.makeNotice(
-                            message: L("已撤销上一次高级更改"),
-                            canUndo: false
-                        )
-                    } else {
-                        self.notice = self.makeNotice(
-                            message: L("高级系统值已恢复，但写前恢复日志未能清理；可再次撤销以重试清理"),
-                            canUndo: true,
-                            kind: .warning
-                        )
-                    }
-                    self.refreshAll(preservingDisplayedState: true)
-                case .failure(let error):
-                    self.alert = self.makeAlert(
-                        title: L("无法撤销高级设置"),
-                        message: error.displayMessage
-                    )
-                }
-            }
-        }
-    }
-
     func dismissNotice() {
         notice = nil
     }
@@ -1626,6 +1534,109 @@ final class PreferencesStore: ObservableObject {
                 self.persistPendingRestarts()
             }
         }
+    }
+
+    /// A power undo record or unfinished power journal written by an earlier
+    /// version, which could still change power settings. This version cannot
+    /// replay it, so it shows the Terminal commands that restore the earlier
+    /// state and clears the record once the user confirms a consistent state.
+    var legacyPowerRecord: LegacyPowerRecord? {
+        guard let undoRecord, let before = undoRecord.powerBefore, !before.isEmpty else { return nil }
+        let commands = before.flatMap { snapshot in
+            snapshot.values.sorted { $0.source.rawValue < $1.source.rawValue }.map {
+                "sudo pmset \($0.source.pmsetFlag) \(snapshot.key) \($0.value)"
+            }
+        }
+        return LegacyPowerRecord(isPending: hasPendingPreferenceTransaction, restoreCommands: commands)
+    }
+
+    /// Reads the power settings again. The record is cleared when they are back
+    /// to the earlier state; a state matching the change itself may be kept.
+    func recheckLegacyPowerRecord() {
+        checkLegacyPowerRecord(keepingCurrentState: false)
+    }
+
+    /// Removes the earlier version's record and leaves power settings as they
+    /// are. An unfinished journal is removed only while the settings fully
+    /// match one recorded state, so no partial write is left behind.
+    func keepCurrentLegacyPowerState() {
+        guard let record = legacyPowerRecord, !isWorking else { return }
+        if record.isPending {
+            guard legacyPowerCanKeepCurrent else { return }
+            checkLegacyPowerRecord(keepingCurrentState: true)
+        } else {
+            clearUndoRecord()
+            legacyPowerCanKeepCurrent = false
+            notice = makeNotice(message: L("已移除旧版本的高级电源记录；电源设置未更改"), canUndo: false)
+        }
+    }
+
+    private func checkLegacyPowerRecord(keepingCurrentState: Bool) {
+        guard !isWorking, let record = undoRecord,
+              let before = record.powerBefore, let after = record.powerAfter, !before.isEmpty else { return }
+        isUndoing = true
+        let powerReader = self.powerReader
+        let keys = before.map(\.key)
+        executorQueue.async { [self] in
+            let result = Result { try powerReader.snapshots(for: keys) }
+            DispatchQueue.main.async { [self] in
+                isUndoing = false
+                switch result {
+                case .success(let current):
+                    let differences = PowerSettingsReader.recoveryConflicts(allowedStates: [before], current: current)
+                    let matchesAfter = PowerSettingsReader.recoveryConflicts(allowedStates: [after], current: current).isEmpty
+                    if differences.isEmpty || (keepingCurrentState && matchesAfter) {
+                        guard clearLegacyPowerRecord() else {
+                            notice = makeNotice(
+                                message: L("无法移除写前恢复日志，设置修改仍保持锁定；请再次点“重新检查”"),
+                                canUndo: false, kind: .warning
+                            )
+                            break
+                        }
+                        notice = makeNotice(
+                            message: differences.isEmpty
+                                ? L("已确认电源设置恢复到更改前的状态")
+                                : L("已移除旧版本的高级电源记录；电源设置未更改"),
+                            canUndo: false
+                        )
+                    } else if matchesAfter {
+                        legacyPowerCanKeepCurrent = true
+                        notice = makeNotice(
+                            message: L("电源设置仍是更改后的状态。可运行上面的命令恢复，或保留当前状态。"),
+                            canUndo: false, kind: .warning
+                        )
+                    } else {
+                        legacyPowerCanKeepCurrent = false
+                        notice = makeNotice(
+                            message: L("电源设置与更改前后都不一致，记录保持不变：\(differences.joined(separator: ", "))"),
+                            canUndo: false, kind: .warning
+                        )
+                    }
+                case .failure(let error):
+                    alert = makeAlert(title: L("无法读取系统偏好"), message: error.displayMessage)
+                }
+                refreshAll(preservingDisplayedState: true)
+            }
+        }
+    }
+
+    @discardableResult
+    private func clearLegacyPowerRecord() -> Bool {
+        if hasPendingPreferenceTransaction, !clearPendingPreferenceTransaction() {
+            return false
+        }
+        clearUndoRecord()
+        legacyPowerCanKeepCurrent = false
+        return true
+    }
+
+    /// Copies a fixed `sudo pmset` command for the user to run in Terminal.
+    func copyAdministratorCommand(_ command: String) {
+        copyCommand(command)
+        notice = makeNotice(
+            message: L("命令已复制；在“终端”中运行后，点“刷新状态”查看结果"),
+            canUndo: canUndo
+        )
     }
 
     /// Postpones a quiet-period restart until the user asks for it.
@@ -1969,171 +1980,6 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
-    private func applyPrivilegedChange(
-        _ item: PreferenceItem,
-        preference: PrivilegedTogglePreference,
-        enabled: Bool
-    ) {
-        let title = enabled ? L("已启用“\(item.title)”") : L("已关闭“\(item.title)”")
-        let fallbackTitle = titleForNewRecord(title)
-        busyItemIDs.insert(item.id)
-        hasPendingPreferenceTransaction = true
-        let powerExecutor = self.powerExecutor
-        let pendingTransactionURL = self.pendingTransactionURL
-
-        executorQueue.async { [self] in
-            var beganWrite = false
-            var retainPendingJournal = false
-            let result: Result<UndoRecord, Error>
-            do {
-                guard let before = try powerExecutor.snapshot(for: preference.key) else {
-                    throw PowerSettingsError.unsupported(preference.key)
-                }
-                guard before.values.allSatisfy({ [0, 1].contains($0.value) }) else {
-                    throw PowerSettingsError.verification(
-                        L("\(preference.key) 当前不是受支持的 0/1 布尔状态")
-                    )
-                }
-                let intended = PowerSettingSnapshot(
-                    key: preference.key,
-                    values: before.values.map {
-                        PowerSourceValue(source: $0.source, value: enabled ? 1 : 0)
-                    }
-                )
-                let record = UndoRecord(
-                    title: fallbackTitle,
-                    displayAction: title,
-                    before: [],
-                    after: [],
-                    restartProcesses: [],
-                    createdAt: timeProvider.now(),
-                    powerBefore: [before],
-                    powerAfter: [intended]
-                )
-                guard PersistedRecordPolicy.isAllowed(record) else {
-                    throw PreferenceExecutorError.verification(
-                        L("高级写前恢复记录不符合当前目录白名单")
-                    )
-                }
-
-                // `pmset` writes each available power source separately. Save
-                // the complete before/after pair before the first privileged
-                // mutation so a process exit cannot strand a partial state
-                // without a recovery path.
-                try journal.persist(record, to: pendingTransactionURL)
-                retainPendingJournal = true
-
-                try powerExecutor.authorized { authorization in
-                    do {
-                        // The administrator sheet creates a time-of-check /
-                        // time-of-use window. Verify the saved baseline again
-                        // after authorization and immediately before writing.
-                        try powerExecutor.ensureUnchanged(since: [before])
-                        beganWrite = true
-                        try powerExecutor.apply(intended, authorization: authorization)
-                        try powerExecutor.verify([intended])
-                    } catch {
-                        let originalMessage = error.displayMessage
-                        let helperOutcomeIsUnknown: Bool
-                        if case PowerSettingsError.privilegedTimeout = error {
-                            helperOutcomeIsUnknown = true
-                        } else {
-                            helperOutcomeIsUnknown = false
-                        }
-                        var rollbackMessage: LocalizedText = ""
-                        if beganWrite {
-                            do {
-                                let conflicts = try powerExecutor
-                                    .restorePreservingExternalChanges(
-                                        [before],
-                                        whenCurrentMatches: [[before], [intended]],
-                                        authorization: authorization
-                                    )
-                                if !conflicts.isEmpty {
-                                    rollbackMessage = L("\n回滚期间检测到外部新值，已保留而未覆盖：") +
-                                        conflicts.joined(separator: "、")
-                                } else {
-                                    try powerExecutor.verify([before])
-                                    retainPendingJournal = helperOutcomeIsUnknown
-                                    if helperOutcomeIsUnknown {
-                                        rollbackMessage += L("\n旧授权 helper 的最终退出状态未知；写前恢复日志将保留并锁定后续写入。")
-                                    }
-                                }
-                            } catch {
-                                rollbackMessage = L("\n自动回滚也未能完成：\(error.displayMessage)")
-                                retainPendingJournal = true
-                            }
-                        }
-                        throw PreferenceChangeFailure(
-                            message: originalMessage + rollbackMessage,
-                            helperOutcomeIsUnknown: helperOutcomeIsUnknown
-                        )
-                    }
-                }
-
-                result = .success(record)
-            } catch {
-                let helperOutcomeIsUnknown: Bool
-                if case PowerSettingsError.privilegedTimeout = error {
-                    helperOutcomeIsUnknown = true
-                } else if let changeFailure = error as? PreferenceChangeFailure,
-                          changeFailure.helperOutcomeIsUnknown {
-                    helperOutcomeIsUnknown = true
-                } else {
-                    helperOutcomeIsUnknown = false
-                }
-                if !beganWrite && !helperOutcomeIsUnknown {
-                    retainPendingJournal = false
-                }
-                if !retainPendingJournal {
-                    journal.remove(at: pendingTransactionURL)
-                }
-                result = .failure(error)
-            }
-
-            DispatchQueue.main.async { [self] in
-                self.busyItemIDs.remove(item.id)
-                switch result {
-                case .success(let record):
-                    let persisted = self.setUndoRecord(record)
-                    let journalCleared = persisted
-                        ? self.clearPendingPreferenceTransaction()
-                        : false
-                    if !persisted || !journalCleared {
-                        self.hasPendingPreferenceTransaction = true
-                    }
-                    let completed = persisted && journalCleared
-                    let suffix = completed ? "" : L("（写前恢复日志已保留；请先撤销后再继续修改）")
-                    self.notice = self.makeNotice(
-                        message: title + suffix,
-                        canUndo: true,
-                        kind: completed ? .success : .warning
-                    )
-                case .failure(let error):
-                    let recoveryAvailable: Bool
-                    if retainPendingJournal {
-                        self.loadPendingPreferenceTransaction(required: true)
-                        recoveryAvailable = self.hasPendingPreferenceTransaction
-                    } else if self.clearPendingPreferenceTransaction() {
-                        recoveryAvailable = false
-                    } else {
-                        self.loadPendingPreferenceTransaction(required: true)
-                        recoveryAvailable = self.hasPendingPreferenceTransaction
-                    }
-                    let recoveryMessage = recoveryAvailable
-                        ? L("\n\n写前恢复日志已保留。请使用工具栏“撤销上次更改”安全恢复后再继续。")
-                        : ""
-                    self.displayedToggleOverrides[item.id] = nil
-                    self.alert = self.makeAlert(
-                        title: L("高级设置未完成"),
-                        message: error.displayMessage + recoveryMessage
-                    )
-                }
-                self.refreshAll(preservingDisplayedState: true)
-            }
-        }
-    }
-
     private func applyChanges(
         title: LocalizedText,
         itemIDs: Set<String>,
@@ -2465,7 +2311,11 @@ final class PreferencesStore: ObservableObject {
             return
         }
         undoRecord = envelope.record
-        undoSummary = L("可撤销：\(envelope.record.localizedTitle())")
+        // A power record from an earlier version cannot be undone in the app;
+        // the Advanced page offers its Terminal commands instead.
+        undoSummary = envelope.record.powerBefore?.isEmpty == false
+            ? nil
+            : L("可撤销：\(envelope.record.localizedTitle())")
     }
 
     private func loadPendingPreferenceTransaction(required: Bool = false) {
@@ -2490,12 +2340,20 @@ final class PreferencesStore: ObservableObject {
             }
             pendingJournalIsUnreadable = false
             undoRecord = record
-            undoSummary = L("检测到未完成操作，可恢复：\(record.localizedTitle())")
             hasPendingPreferenceTransaction = true
-            alert = makeAlert(
-                title: L("检测到未完成的设置事务"),
-                message: L("上次操作可能在普通偏好多键写入或高级电源来源写入期间中断。为避免覆盖未知状态，设置修改已暂时锁定；请先使用工具栏“撤销上次更改”按写前快照恢复。")
-            )
+            if record.powerBefore?.isEmpty == false {
+                undoSummary = nil
+                alert = makeAlert(
+                    title: L("检测到旧版本未完成的高级电源事务"),
+                    message: L("设置修改已锁定。请打开“高级”页，按说明在“终端”中恢复后点“重新检查”。")
+                )
+            } else {
+                undoSummary = L("检测到未完成操作，可恢复：\(record.localizedTitle())")
+                alert = makeAlert(
+                    title: L("检测到未完成的设置事务"),
+                    message: L("上次操作可能在普通偏好多键写入或高级电源来源写入期间中断。为避免覆盖未知状态，设置修改已暂时锁定；请先使用工具栏“撤销上次更改”按写前快照恢复。")
+                )
+            }
         } catch {
             // A journal that exists but cannot be validated may describe a
             // partially completed transaction. Keep the original evidence in

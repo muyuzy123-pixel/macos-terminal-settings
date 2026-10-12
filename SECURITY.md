@@ -1,20 +1,28 @@
 # Security and privacy boundaries
 
-This application changes macOS preferences and can request administrator authorization for three power settings. Review the displayed effect and recovery behavior before applying a change.
+## Published preview: v1.9.0-preview.2 (Build 18)
 
-## Current design
+The current [download](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2) still uses `AuthorizationExecuteWithPrivileges` for its three allowlisted power settings and can show the macOS administrator-authorization dialog. Its legacy helper does not expose a child PID; a timeout cannot prove that the helper exited, so an unknown outcome retains the recovery journal and locks writes. These release assets are unchanged. See the [published security policy](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/SECURITY.md) for that version's complete boundaries.
 
-Ordinary commands use fixed executables and argument arrays. Advanced writes permit only Boolean values for `ttyskeepawake`, `proximitywake`, and `acwake`, across power sources present at the start of an operation. The catalog constrains recovery records as well as new writes. Managed or unreadable preferences remain read-only; conflicting external changes prevent destructive recovery.
+## Unreleased development source
+
+The following design describes this source branch, not the current preview download. Its version metadata still reads 1.9.0 / Build 18 and does not establish that a binary is the published release; record the source commit when testing.
+
+This application changes macOS preferences for the current user. It never requests administrator authorization: for three power settings it only reads their state and shows fixed `sudo pmset` commands for you to run in Terminal. Review the displayed effect and recovery behavior before applying a change.
+
+### Development design
+
+Ordinary commands use fixed executables and argument arrays. Power settings are read with an unprivileged `pmset -g custom`; the app offers commands only for the Boolean keys `ttyskeepawake`, `proximitywake`, and `acwake`. The catalog constrains recovery records as well as new writes. Managed or unreadable preferences remain read-only; conflicting external changes prevent destructive recovery.
 
 A write-ahead journal records the intended transaction before writes begin. An unreadable or incomplete journal locks further writes until reviewed or recovered. This reduces recovery risk; it does not make undocumented settings stable or replace a system backup.
 
-## Known limitations
+### Development limitations
 
-- The inherited C bridge calls deprecated `AuthorizationExecuteWithPrivileges`. Apple directs developers toward a launchd helper / Service Management approach. Migration to a signed modern helper has not been implemented or validated. The legacy API does not expose a child PID; a communication timeout cannot prove that the privileged process has exited. The app retains its recovery journal and locks writes when the outcome is unknown. [Apple API documentation](https://developer.apple.com/documentation/security/authorizationexecutewithprivileges)
+- The published preview writes power settings through the deprecated `AuthorizationExecuteWithPrivileges` API. This development source removes that bridge and links no authorization API. Bringing in-app power changes back needs a signed launchd helper (Service Management), which in turn needs Developer ID signing. A power undo record or unfinished power journal left by an earlier build is not replayed: the app shows the restore commands and removes the record only after a check finds the earlier state, or, on request, a fully applied change.
 - Builds are ad-hoc signed, without Developer ID or notarization. A strict code signature check is not a Gatekeeper or notarization result.
-- The app is not App Sandbox-contained. Ordinary writes run as the current user; advanced writes use the macOS authorization dialog.
+- The app is not App Sandbox-contained. Writes run as the current user; power settings change only when you run the shown commands yourself.
 - Hidden keys and legacy gestures may be ignored on newer systems. Write/read-back checks do not validate physical effects.
-- Real managed profiles and privileged power writes require separate acceptance; simulated tests do not prove those device behaviors.
+- Real managed profiles require separate acceptance; simulated tests do not prove that device behavior.
 
 ## Data and reports
 

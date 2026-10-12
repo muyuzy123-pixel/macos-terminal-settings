@@ -132,7 +132,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(language.text(selectedCategory == .advanced ? L("高级操作") : L("仅当前用户")))
                         .font(.caption.weight(.medium))
-                    Text(language.text(selectedCategory == .advanced ? L("每次更改均需系统授权") : L("无需管理员权限")))
+                    Text(language.text(selectedCategory == .advanced ? L("在“终端”中以管理员身份修改") : L("无需管理员权限")))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -193,8 +193,12 @@ struct OverviewView: View {
                     symbol: "checkmark.shield.fill",
                     tint: .green,
                     title: L("安全边界"),
-                    detail: L("普通分类无需提权；由组织管理的偏好保持只读。高级分类仅执行固定白名单中的 pmset 布尔操作，并逐次请求管理员授权。应用不关闭 SIP、Gatekeeper 或文件隔离；所有写入都会校验、失败回滚并保留撤销记录。")
+                    detail: L("普通分类无需提权；由组织管理的偏好保持只读。高级分类只读取电源设置，并提供可在“终端”运行的固定 pmset 命令；应用本身不请求管理员授权。应用不关闭 SIP、Gatekeeper 或文件隔离；所有写入都会校验、失败回滚并保留撤销记录。")
                 )
+
+                if let legacyPower = store.legacyPowerRecord {
+                    LegacyPowerRecoveryCard(record: legacyPower, store: store)
+                }
 
                 if let undoSummary = store.undoSummary {
                     UndoRecoveryCard(
@@ -267,11 +271,14 @@ struct CategoryView: View {
                 }
                 UnverifiedSystemBanner(items: PreferenceCatalog.items(in: category))
                 if category == .advanced {
+                    if let legacyPower = store.legacyPowerRecord {
+                        LegacyPowerRecoveryCard(record: legacyPower, store: store)
+                    }
                     InfoCard(
-                        symbol: "lock.shield.fill",
+                        symbol: "terminal.fill",
                         tint: .orange,
-                        title: L("管理员授权边界"),
-                        detail: L("每个开关独立确认并向 macOS 请求管理员授权；系统可能复用近期认证。应用只把固定的 0/1 参数直接交给 /usr/bin/pmset，不启动 shell、不接受任意命令；不支持的硬件能力会保持不可操作。")
+                        title: L("在终端中修改电源设置"),
+                        detail: L("修改这些电源设置需要管理员权限。本应用只读取当前状态，不再代为请求授权或写入：请复制命令到“终端”运行，再点“刷新状态”查看结果。命令只修改所列能力，并作用于所有电源来源。")
                     )
                 } else if category == .trackpad {
                     InfoCard(
@@ -287,7 +294,7 @@ struct CategoryView: View {
                     }
                 }
                 Text(language.text(category == .advanced
-                        ? L("高级开关关闭时明确写入 0；应用内撤销会恢复操作前各电源来源的真实值。")
+                        ? L("关闭命令会明确写入 0。电源设置在应用之外修改，因此不会出现在应用内撤销中。")
                         : L("隐藏扩展会在确认后删除当前用户显式值（无论来源）；系统设置增强或镜像会保存并恢复本应用接管前值，不会用删除键冒充原设置。")))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -401,7 +408,6 @@ struct PreferenceRow: View {
     @State private var showsCommands = false
     @State private var showsCustomization = false
     @State private var asksToReset = false
-    @State private var pendingPrivilegedValue: Bool?
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     private var isBusy: Bool {
@@ -622,25 +628,6 @@ struct PreferenceRow: View {
         } message: {
             Text(language.text(item.recovery.detail))
         }
-        .confirmationDialog(language.text(L("“\(item.title)”需要管理员授权")),
-            isPresented: Binding(
-                get: { pendingPrivilegedValue != nil },
-                set: { if !$0 { pendingPrivilegedValue = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let enabled = pendingPrivilegedValue {
-                Button(language.text(enabled ? L("继续开启") : L("继续关闭"))) {
-                    pendingPrivilegedValue = nil
-                    store.setToggle(item, enabled: enabled)
-                }
-            }
-            Button(language.text(L("取消")), role: .cancel) {
-                pendingPrivilegedValue = nil
-            }
-        } message: {
-            Text(language.text(L("macOS 将请求管理员授权；如近期已经认证，系统可能直接复用。此操作只修改该功能在当前可用电源来源中的 0/1 状态，可通过应用内撤销恢复原值。")))
-        }
     }
 
     private func selectedChoiceTitle(_ preference: ChoicePreference) -> LocalizedText {
@@ -749,15 +736,24 @@ struct PreferenceRow: View {
             .controlSize(.small)
             .accessibilityLabel(language.text(showsCustomization ? L("收起\(item.title)的精确值选项") : L("展开\(item.title)的精确值选项")))
             .accessibilityIdentifier("preference.numeric.\(item.id)")
-        case .privilegedToggle:
-            Toggle(language.text(""), isOn: Binding(
-                get: { store.displayedToggleValue(item) },
-                set: { pendingPrivilegedValue = $0 }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .accessibilityLabel(language.text(L("\(item.title)，需要管理员权限")))
-            .accessibilityIdentifier("preference.privilegedToggle.\(item.id)")
+        case .privilegedToggle(let preference):
+            // The app reads power settings but never writes them; the user
+            // runs the fixed command in Terminal as an administrator.
+            Menu {
+                Button(language.text(L("复制开启命令"))) {
+                    store.copyAdministratorCommand(preference.command(enabled: true))
+                }
+                Button(language.text(L("复制关闭命令"))) {
+                    store.copyAdministratorCommand(preference.command(enabled: false))
+                }
+            } label: {
+                Label(language.text(L("复制命令")), systemImage: "terminal")
+            }
+            .fixedSize()
+            .accessibilityLabel(language.text(PreferenceDisplayText.disclosureLabel(
+                title: item.title, action: L("复制命令")
+            )))
+            .accessibilityIdentifier("preference.privilegedCommands.\(item.id)")
         }
     }
 }
@@ -1717,6 +1713,51 @@ struct InfoCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(tint.opacity(0.16), lineWidth: 0.7)
+        )
+    }
+}
+
+/// A power change recorded by an earlier version, which could still write
+/// power settings. Shows the Terminal commands that restore the earlier state
+/// and lets the user confirm the result or keep the current state.
+struct LegacyPowerRecoveryCard: View {
+    @EnvironmentObject private var language: AppLanguageStore
+    let record: LegacyPowerRecord
+    @ObservedObject var store: PreferencesStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(language.text(L("旧版本留下的高级电源更改")), systemImage: "bolt.badge.clock.fill")
+                .font(.headline)
+            Text(language.text(record.isPending
+                ? L("旧版本的一次高级电源写入没有完成。为避免覆盖未知状态，设置修改已锁定。请在“终端”中运行以下命令恢复，然后点“重新检查”。")
+                : L("此版本不再在应用内修改电源设置，因此无法直接撤销这次更改。如需恢复到更改前的状态，请在“终端”中运行以下命令，然后点“重新检查”。")))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            CommandPreview(
+                commands: [(L("恢复接管前值"), record.restoreCommands.joined(separator: "\n"))],
+                store: store
+            )
+            HStack(spacing: 10) {
+                Button(language.text(L("重新检查"))) { store.recheckLegacyPowerRecord() }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("legacyPower.recheck")
+                Button(language.text(L("保留当前状态并移除记录"))) { store.keepCurrentLegacyPowerState() }
+                    .disabled(record.isPending && !store.legacyPowerCanKeepCurrent)
+                    .accessibilityIdentifier("legacyPower.keep")
+            }
+            .disabled(store.isWorking)
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 0.8)
         )
     }
 }

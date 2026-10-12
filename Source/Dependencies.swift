@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// System-facing dependencies are deliberately expressed as small protocols.
 /// Production uses the concrete adapters below; contract tests can inject
@@ -46,42 +45,9 @@ struct SystemPreferenceManagementProvider: PreferenceManagementProviding {
     }
 }
 
-/// The authorization reference is intentionally opaque to the store. Test
-/// doubles can provide a nil-backed context and never manufacture a fake OS
-/// authorization pointer.
-final class PowerAuthorizationContext: @unchecked Sendable {
-    let reference: AuthorizationRef?
-
-    init(reference: AuthorizationRef?) {
-        self.reference = reference
-    }
-}
-
-protocol PowerSettingsExecuting: AnyObject, Sendable {
+/// Reads the allow-listed power settings. Nothing in the app writes them.
+protocol PowerSettingsReading: AnyObject, Sendable {
     func snapshots(for keys: [String]) throws -> [PowerSettingSnapshot]
-    func snapshot(for key: String) throws -> PowerSettingSnapshot?
-    func verify(_ expected: [PowerSettingSnapshot]) throws
-    func ensureUnchanged(since expected: [PowerSettingSnapshot]) throws
-    func ensureCurrentMatchesAny(
-        _ allowedStates: [[PowerSettingSnapshot]],
-        operation: LocalizedText
-    ) throws
-    func authorized(
-        _ operation: (PowerAuthorizationContext) throws -> Void
-    ) throws
-    func apply(
-        _ snapshot: PowerSettingSnapshot,
-        authorization: PowerAuthorizationContext
-    ) throws
-    func restore(
-        _ snapshots: [PowerSettingSnapshot],
-        authorization: PowerAuthorizationContext
-    ) throws
-    func restorePreservingExternalChanges(
-        _ target: [PowerSettingSnapshot],
-        whenCurrentMatches allowedStates: [[PowerSettingSnapshot]],
-        authorization: PowerAuthorizationContext
-    ) throws -> [String]
 }
 
 protocol PreferenceTransactionJournaling: Sendable {
