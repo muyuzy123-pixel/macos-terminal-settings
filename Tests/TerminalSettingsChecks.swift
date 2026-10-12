@@ -2647,6 +2647,14 @@ struct TerminalSettingsChecks {
     /// and an unfinished one unlocks writes only in a fully consistent state.
     @MainActor
     private static func checkTerminalPowerCommands() throws {
+        // The Overview card uses this subtitle; it must describe the same
+        // Terminal-only behavior as the Advanced page in every UI language.
+        let resources = try localizationTestResources()
+        for (language, terminalWord) in [(AppLanguage.simplifiedChinese, "终端"), (.english, "Terminal"), (.spanish, "Terminal")] {
+            let subtitle = SettingsCategory.advanced.subtitle.rendered(language: language, resources: resources)
+            try require(subtitle.localizedCaseInsensitiveContains(terminalWord),
+                        "高级分类概览必须说明在终端修改电源设置，不能宣称应用请求管理员授权")
+        }
         guard let advanced = PreferenceCatalog.items.first(where: { $0.privilegedKey == "ttyskeepawake" }),
               let ordinary = PreferenceCatalog.items.first(where: { $0.id == "finder.posixTitle" }) else {
             throw CheckFailure.failed("缺少终端电源命令测试项目")

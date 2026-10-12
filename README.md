@@ -13,15 +13,15 @@ Bring macOS preferences usually adjusted with Terminal commands into a native in
 | Channel | Behavior |
 | --- | --- |
 | Published `v1.9.0-preview.2`, App 1.9.0 (Build 18) | Uses the earlier interface, restarts Dock/Finder immediately when required, and can change power settings in-app through administrator authorization. |
-| Unreleased development source in this branch | Adds the draft/notice fixes and shortcuts, defers Dock/Finder restarts, and offers Terminal commands for power changes without requesting administrator authorization. |
+| Candidate source for `v1.10.0-preview.1`, App 1.10.0 (Build 19) | Adds the draft/notice fixes and shortcuts, defers Dock/Finder restarts, and offers Terminal commands for power changes without requesting administrator authorization. |
 
-The feature, usage, and permission sections below describe **development source**. The download section and [tagged usage guide](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/README.md) describe the published package. Development version metadata still reads 1.9.0 / Build 18; identify test builds by their source commit. The existing Release assets have not been replaced.
+The feature, usage, and permission sections below describe the **1.10.0 (Build 19) candidate source**. The download section and [tagged usage guide](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/README.md) describe the published package. Identify candidate builds by their source commit as well as their version. The existing Release assets have not been replaced. See the [candidate release notes](docs/publication/v1.10.0-preview.1-notes.md) for changes and validation limits; physical hover timing and VoiceOver behavior have not been accepted in the running app.
 
 See [release status](docs/RELEASE_STATUS.md) for distribution status and verified scope.
 
-![English Dock numeric controls showing current values of 35 and 37 points and unapplied drafts of 48 and 64 points](docs/images/dock-numeric-controls-en.png)
+![English Build 19 candidate Dock controls showing current values of 35 and 37 points and unapplied drafts of 48 and 64 points](docs/images/dock-numeric-controls-en.png)
 
-*English interface captured at native 2× resolution in an isolated preview copy. The 48/64-point drafts have not been applied; current system values remain 35/37 points.*
+*English interface of the current 1.10.0 (Build 19) candidate, captured at native 2× resolution in an isolated copy. The 48/64-point drafts have not been applied; current system values remain 35/37 points. This screenshot does not demonstrate Apply, process restarts, hover timing, or VoiceOver acceptance.*
 
 ## Development features
 
@@ -108,7 +108,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-These commands build the current default branch (`main`). While PR #5 is unmerged, test its development source by running `git fetch origin pull/5/head` and `git switch --detach FETCH_HEAD` after cloning and before building. To build the published preview, including its earlier administrator-authorization behavior, run `git switch --detach v1.9.0-preview.2` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
+These commands build the current default branch (`main`); the source in this release-candidate branch identifies itself as 1.10.0 (Build 19). To build the published preview, including its earlier administrator-authorization behavior, run `git switch --detach v1.9.0-preview.2` after cloning and **before** `zsh build.sh`. Building the same tag is not a guarantee of a byte-identical ZIP.
 
 The build creates `TerminalSettings.app` and `TerminalSettings.zip`. If it fails, check the toolchain requirements above and the [contributor guidance](CONTRIBUTING.md); include the error and toolchain version in a redacted bug report. To check contracts and independently verify the packaged archive:
 

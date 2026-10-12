@@ -13,15 +13,15 @@
 | 版本渠道 | 行为 |
 | --- | --- |
 | 已发布 `v1.9.0-preview.2`，应用 1.9.0（Build 18） | 使用原有界面；需要时立即重启 Dock/Finder；高级电源项仍可在应用内请求管理员授权后修改。 |
-| 本分支尚未发布的开发源码 | 包含草稿／通知修复和快捷键，延迟 Dock/Finder 重启；电源项改为提供终端命令，应用不请求管理员授权。 |
+| `v1.10.0-preview.1` 候选源码，应用 1.10.0（Build 19） | 包含草稿／通知修复和快捷键，延迟 Dock/Finder 重启；电源项改为提供终端命令，应用不请求管理员授权。 |
 
-下方功能、使用与权限章节描述的是**开发源码**；下载章节与[标签对应的使用说明](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/README.zh-CN.md)描述已发布安装包。开发源码的版本字段仍为 1.9.0 / Build 18，测试构建应同时记录来源提交。现有 Release 附件没有被替换。
+下方功能、使用与权限章节描述的是 **1.10.0（Build 19）候选源码**；下载章节与[标签对应的使用说明](https://github.com/muyuzy123-pixel/macos-terminal-settings/blob/v1.9.0-preview.2/README.zh-CN.md)描述已发布安装包。候选构建应同时记录版本与来源提交。现有 Release 附件没有被替换。变更与验证边界见[候选版发布说明](docs/publication/v1.10.0-preview.1-notes.md)；尚未完成运行中应用的真实鼠标悬停计时与 VoiceOver 验收。
 
 当前分发状态与已验证范围见[发布状态](docs/RELEASE_STATUS.md)。
 
-![简体中文程序坞数值控件：系统当前值为 35 与 37 点，尚未应用的草稿为 48 与 64 点](docs/images/dock-numeric-controls-zh-Hans.png)
+![Build 19 候选版简体中文程序坞控件：系统当前值为 35 与 37 点，尚未应用的草稿为 48 与 64 点](docs/images/dock-numeric-controls-zh-Hans.png)
 
-*隔离预览副本的简体中文界面，以原生 2× 分辨率捕获。48/64 点为尚未应用的草稿，系统当前值仍为 35/37 点。*
+*当前 1.10.0（Build 19）候选版的简体中文界面，在隔离副本中以原生 2× 分辨率捕获。48/64 点为尚未应用的草稿，系统当前值仍为 35/37 点。截图不代表已验收应用写入、进程重启、悬停计时或 VoiceOver。*
 
 ## 开发源码的功能
 
@@ -108,7 +108,7 @@ cd macos-terminal-settings
 zsh build.sh
 ```
 
-上述命令构建默认分支（`main`）的当前源码。PR #5 尚未合并时，若要测试其开发源码，请在克隆后、构建前执行 `git fetch origin pull/5/head` 和 `git switch --detach FETCH_HEAD`。如需构建已发布预览版（包括其原有管理员授权行为），请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.2`。检出同一标签不代表生成的 ZIP 校验和必然相同。
+上述命令构建默认分支（`main`）的当前源码；本候选发布分支的源码版本为 1.10.0（Build 19）。如需构建已发布预览版（包括其原有管理员授权行为），请在克隆后、执行 `zsh build.sh` **之前**运行 `git switch --detach v1.9.0-preview.2`。检出同一标签不代表生成的 ZIP 校验和必然相同。
 
 构建生成 `TerminalSettings.app` 和 `TerminalSettings.zip`。构建失败时先核对上述工具链要求和[贡献说明](CONTRIBUTING.md)，反馈时附上已脱敏的错误与工具链版本。运行契约测试与独立解包核验：
 

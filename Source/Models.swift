@@ -37,7 +37,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .keyboard: return L("重复输入与按键响应")
         case .windows: return L("保存、窗口交互与动画")
         case .system: return L("菜单栏、Time Machine 与开发")
-        case .advanced: return L("需要管理员授权的隐藏能力")
+        case .advanced: return L("在终端中修改电源设置")
         }
     }
 

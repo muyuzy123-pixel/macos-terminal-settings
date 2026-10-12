@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-10-12",
+  "application": {
+    "version": "1.10.0",
+    "build": "19"
+  },
+  "base_commit": "1aa177af1a821220f5e3cc6c87b0a4078d2a78d6",
+  "candidate_build_inputs_sha256": {
+    "Info.plist": "b9bb14d5e1063da2224c50812035df67ef100af051dfee1f5d03489b94837270",
+    "build.sh": "ae74e6b9c516eaef1f5816934a0024a68aeda89d69716d2e946072545583739c",
+    "scripts/toolchain.sh": "c1b8b970aa4c593eac9f4ec8c2a0401b0138394a23acdb58e2c4639f444e45db",
+    "LICENSE": "ba18e218589617fda5369b3e9ba7261e1e7284121a5b3e80a552861e0901a210",
+    "AppIcon.icns": "af2c6b987a5b533eb81b98b0dc2caab3d95073bd048735c41097a97af3435c0b",
+    "Source/Catalog.swift": "25a9acf477d5044f1db103a04d2afd2d43938311dcfedb8190d4b0fd9af436a9",
+    "Source/Dependencies.swift": "ffdad8aaf9be8d7eb7d92c6665418dbada17781e4e99ad2ab68b999d25008121",
+    "Source/GenerateIcon.swift": "815154957f6d825c9fc7b23cb055e7ee305ec03cc44e36ea3b1b24f9bf5f305e",
+    "Source/Localization.swift": "62976b2e5d2a3b33ca386364176a0c77c396deb52f6c3af2007b2f0b6db60a2e",
+    "Source/Models.swift": "0d8ba790551dc218eb8e87d23b24de9d801bc10c54a1b7a163227cc528b34e6d",
+    "Source/PowerSettingsReader.swift": "de22f5cb58cbe418df63b762db5c42e5c0701392cd4c4a3128042cf10555ec1c",
+    "Source/PreferencesStore.swift": "48eac72e7533ce4d59145b9f4e96ae6ad59f5d746b28a24e2a632afdc279e150",
+    "Source/TerminalSettingsApp.swift": "af1f8b1dac01c1829ad061fc437b10635f3058ae58067d4c1fd47ece72a49e67",
+    "Source/Views.swift": "5c3fd95f838c393c779ae3ec015ce9cc71f053db8d8edbd3c82d901f58404449",
+    "Resources/en.lproj/InfoPlist.strings": "065a6ecb10f82409cc3ed24c535e4845df3e4d794a224355fc6e2466c491302a",
+    "Resources/en.lproj/Localizable.strings": "ea483c960f40f3857465dc4ccf8f5b51c05f600be9021ed19e17f40e7f0d9451",
+    "Resources/es.lproj/InfoPlist.strings": "8c026bb1d387d93e2aeab58eab5cfbe3a70f2e46a9fa6e473b2c29a8a566a006",
+    "Resources/es.lproj/Localizable.strings": "49e28475a0c9a3de0697c3d4f0963f8a87fc1ab5574f44c8e79f15cbf53c8b5b",
+    "Resources/zh-Hans.lproj/InfoPlist.strings": "a33b0b1398f3f2395d143018a83d8661799dec121b467a06fc6b1711f4252d34",
+    "Resources/zh-Hans.lproj/Localizable.strings": "4fce54381a8fe920aed1ea46d3cb7ec381f6294161e2369d2c42a2b1aea5dd18"
+  },
+  "capture_method": "macOS screencapture -x -o -a -t png -l; isolated candidate window; no cursor or shadow capture, resizing, or upsampling.",
+  "image_processing": "Only EXIF/text metadata removed; original PNG image-data chunks preserved.",
+  "images": [
+    {
+      "language": "en",
+      "path": "docs/images/dock-numeric-controls-en.png",
+      "sha256": "a4d5e17795cf89d9f2becb002ab454be39a3ffffc07457fdfeccd3207977951b",
+      "pixel_dimensions": [
+        2120,
+        1520
+      ],
+      "window_points": [
+        1060,
+        760
+      ],
+      "native_scale": 2,
+      "format": "PNG",
+      "mode": "RGBA",
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "metadata_removed": [
+        "eXIf",
+        "iTXt"
+      ],
+      "captured_idat_sha256": "fc2b68c654d916be22b5db4ba0e5f642898a3de176516f79877e04e4c16cf265",
+      "image_data_reencoded": false
+    },
+    {
+      "language": "zh-Hans",
+      "path": "docs/images/dock-numeric-controls-zh-Hans.png",
+      "sha256": "25076cd94ed7661bc6db7a07425afe823ce0a93cf0cfbcd25f2035c3f538c3dd",
+      "pixel_dimensions": [
+        2120,
+        1520
+      ],
+      "window_points": [
+        1060,
+        760
+      ],
+      "native_scale": 2,
+      "format": "PNG",
+      "mode": "RGBA",
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "metadata_removed": [
+        "eXIf",
+        "iTXt"
+      ],
+      "captured_idat_sha256": "1e266777b63794bf8bbac715a042167c335af9358d6938dc883d5b5c6e020e6d",
+      "image_data_reencoded": false
+    }
+  ],
+  "visible_state": {
+    "current_normal_size": 35,
+    "current_magnified_size": 37,
+    "draft_normal_size": 48,
+    "draft_magnified_size": 64,
+    "drafts_applied": false
+  },
+  "visual_review": {
+    "separate_language_screenshots": true,
+    "full_description_current_values_drafts_and_apply_visible": true,
+    "computer_use_pointer_absent": true,
+    "extra_white_matte_absent": true,
+    "native_window_chrome_preserved": true,
+    "private_information_not_found": true
+  },
+  "isolation": {
+    "separate_bundle_id": true,
+    "qa_changes": [
+      "CFBundleIdentifier",
+      "ad-hoc re-signing"
+    ],
+    "production_preferences_power_app_state_and_recovery_files_unchanged": true,
+    "preference_address_count": 46,
+    "qa_app_and_state_cleaned": true,
+    "raw_snapshots_published": false
+  },
+  "boundaries": {
+    "applied_system_settings": false,
+    "process_restarts": false,
+    "physical_hover_acceptance": false,
+    "voiceover_acceptance": false
+  },
+  "historical_record_preserved": "docs/publication/screenshots-2026-09-22.json remains unchanged; its older images can be retrieved at its historical commit."
+}
