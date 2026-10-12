@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT="${0:A:h}"
 BUILD="$ROOT/.build/checks"
-BRIDGE_OBJECT="$BUILD/AuthorizationBridge.o"
 CONTRACT_ONLY=0
 if [[ "${1:-}" == "--contract-only" ]]; then
   CONTRACT_ONLY=1
@@ -24,12 +23,6 @@ cp -R "$ROOT/Resources/en.lproj" "$ROOT/Resources/es.lproj" "$ROOT/Resources/zh-
 cp "$ROOT/Info.plist" "$TEST_RESOURCES/Contents/Info.plist"
 export TERMINAL_SETTINGS_TEST_RESOURCE_BUNDLE="$TEST_RESOURCES"
 
-"$CLANG" \
-  -target arm64-apple-macos14.0 \
-  -isysroot "$SDK" \
-  -Wno-deprecated-declarations \
-  -c "$ROOT/Source/AuthorizationBridge.c" \
-  -o "$BRIDGE_OBJECT"
 
 # Type-check the complete application, including SwiftUI views and app entry.
 "$SWIFTC" \
@@ -42,12 +35,11 @@ export TERMINAL_SETTINGS_TEST_RESOURCE_BUNDLE="$TEST_RESOURCES"
   -module-cache-path "$MODULE_CACHE" \
   -framework SwiftUI \
   -framework AppKit \
-  -framework Security \
   "$ROOT/Source/Localization.swift" \
   "$ROOT/Source/Models.swift" \
   "$ROOT/Source/Catalog.swift" \
   "$ROOT/Source/Dependencies.swift" \
-  "$ROOT/Source/PowerSettingsExecutor.swift" \
+  "$ROOT/Source/PowerSettingsReader.swift" \
   "$ROOT/Source/PreferencesStore.swift" \
   "$ROOT/Source/Views.swift" \
   "$ROOT/Source/TerminalSettingsApp.swift"
@@ -61,7 +53,6 @@ export TERMINAL_SETTINGS_TEST_RESOURCE_BUNDLE="$TEST_RESOURCES"
   -sdk "$SDK" \
   -module-cache-path "$MODULE_CACHE" \
   -framework AppKit \
-  -framework Security \
   -Xlinker -platform_version \
   -Xlinker macos \
   -Xlinker 14.0 \
@@ -70,10 +61,9 @@ export TERMINAL_SETTINGS_TEST_RESOURCE_BUNDLE="$TEST_RESOURCES"
   "$ROOT/Source/Models.swift" \
   "$ROOT/Source/Catalog.swift" \
   "$ROOT/Source/Dependencies.swift" \
-  "$ROOT/Source/PowerSettingsExecutor.swift" \
+  "$ROOT/Source/PowerSettingsReader.swift" \
   "$ROOT/Source/PreferencesStore.swift" \
   "$ROOT/Tests/TerminalSettingsChecks.swift" \
-  "$BRIDGE_OBJECT" \
   -o "$BUILD/TerminalSettingsChecks"
 
 if (( CONTRACT_ONLY )); then

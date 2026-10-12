@@ -25,14 +25,6 @@ private enum RecordingDependencyEvent: CustomStringConvertible {
     case restart([String])
     case managementRead([PreferenceAddress])
     case powerSnapshots([String])
-    case powerSnapshot(String)
-    case powerVerify
-    case powerEnsureUnchanged
-    case powerEnsureCurrentMatchesAny
-    case powerAuthorization
-    case powerApply(PowerSettingSnapshot)
-    case powerRestore([PowerSettingSnapshot])
-    case powerRestorePreservingExternalChanges
     case journalRead(URL)
     case journalPersist(URL, [PreferenceSnapshot], [PreferenceSnapshot])
     case journalRemove(URL)
@@ -55,15 +47,6 @@ private enum RecordingDependencyEvent: CustomStringConvertible {
             return "restart(\(names.joined(separator: ",")))"
         case .managementRead: return "management.forcedAddresses"
         case .powerSnapshots: return "power.snapshots"
-        case .powerSnapshot(let key): return "power.snapshot(\(key))"
-        case .powerVerify: return "power.verify"
-        case .powerEnsureUnchanged: return "power.ensureUnchanged"
-        case .powerEnsureCurrentMatchesAny: return "power.ensureCurrentMatchesAny"
-        case .powerAuthorization: return "power.authorized"
-        case .powerApply(let snapshot): return "power.apply(\(snapshot.key))"
-        case .powerRestore: return "power.restore"
-        case .powerRestorePreservingExternalChanges:
-            return "power.restorePreservingExternalChanges"
         case .journalRead(let url): return "journal.read(\(url.lastPathComponent))"
         case .journalPersist(let url, _, _):
             return "journal.persist(\(url.lastPathComponent))"
@@ -75,8 +58,6 @@ private enum RecordingDependencyEvent: CustomStringConvertible {
         switch self {
         case .preferenceApply, .preferenceRestore,
                 .preferenceRestorePreservingExternalChanges, .restart,
-                .powerAuthorization, .powerApply, .powerRestore,
-                .powerRestorePreservingExternalChanges,
                 .journalPersist, .journalRemove:
             return true
         default:
@@ -296,71 +277,25 @@ private struct RecordingManagementProvider: PreferenceManagementProviding {
     }
 }
 
-private final class FailClosedPowerExecutor: PowerSettingsExecuting, @unchecked Sendable {
+/// Serves fixed `pmset` readings. The app has no power write path to record.
+private final class RecordingPowerReader: PowerSettingsReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: [PowerSettingSnapshot]
     private let log: RecordingDependencyLog
 
-    init(log: RecordingDependencyLog) {
+    init(log: RecordingDependencyLog, snapshots: [PowerSettingSnapshot] = []) {
         self.log = log
+        current = snapshots
+    }
+
+    func set(_ snapshots: [PowerSettingSnapshot]) {
+        lock.lock(); current = snapshots; lock.unlock()
     }
 
     func snapshots(for keys: [String]) throws -> [PowerSettingSnapshot] {
         log.append(.powerSnapshots(keys))
-        return []
-    }
-
-    func snapshot(for key: String) throws -> PowerSettingSnapshot? {
-        log.append(.powerSnapshot(key))
-        return nil
-    }
-
-    func verify(_ expected: [PowerSettingSnapshot]) throws {
-        log.append(.powerVerify)
-        throw CheckFailure.failed("内存电源执行器拒绝 verify")
-    }
-
-    func ensureUnchanged(since expected: [PowerSettingSnapshot]) throws {
-        log.append(.powerEnsureUnchanged)
-        throw CheckFailure.failed("内存电源执行器拒绝 ensureUnchanged")
-    }
-
-    func ensureCurrentMatchesAny(
-        _ allowedStates: [[PowerSettingSnapshot]],
-        operation: LocalizedText
-    ) throws {
-        log.append(.powerEnsureCurrentMatchesAny)
-        throw CheckFailure.failed("内存电源执行器拒绝 ensureCurrentMatchesAny")
-    }
-
-    func authorized(
-        _ operation: (PowerAuthorizationContext) throws -> Void
-    ) throws {
-        log.append(.powerAuthorization)
-        throw CheckFailure.failed("内存电源执行器拒绝授权")
-    }
-
-    func apply(
-        _ snapshot: PowerSettingSnapshot,
-        authorization: PowerAuthorizationContext
-    ) throws {
-        log.append(.powerApply(snapshot))
-        throw CheckFailure.failed("内存电源执行器拒绝写入")
-    }
-
-    func restore(
-        _ snapshots: [PowerSettingSnapshot],
-        authorization: PowerAuthorizationContext
-    ) throws {
-        log.append(.powerRestore(snapshots))
-        throw CheckFailure.failed("内存电源执行器拒绝恢复")
-    }
-
-    func restorePreservingExternalChanges(
-        _ target: [PowerSettingSnapshot],
-        whenCurrentMatches allowedStates: [[PowerSettingSnapshot]],
-        authorization: PowerAuthorizationContext
-    ) throws -> [String] {
-        log.append(.powerRestorePreservingExternalChanges)
-        throw CheckFailure.failed("内存电源执行器拒绝冲突感知恢复")
+        lock.lock(); defer { lock.unlock() }
+        return current.filter { keys.contains($0.key) }
     }
 }
 
@@ -441,70 +376,6 @@ private final class StickyJournal: PreferenceTransactionJournaling, @unchecked S
     }
 }
 
-/// A helper can time out after accepting a write. Successful compensation does
-/// not prove that helper has exited, so this double verifies WAL retention.
-private final class TimedOutPowerExecutor: PowerSettingsExecuting, @unchecked Sendable {
-    private let log: RecordingDependencyLog
-    private let before = PowerSettingSnapshot(
-        key: "ttyskeepawake", values: [PowerSourceValue(source: .charger, value: 1)]
-    )
-
-    init(log: RecordingDependencyLog) { self.log = log }
-
-    func snapshots(for keys: [String]) throws -> [PowerSettingSnapshot] {
-        log.append(.powerSnapshots(keys))
-        return keys.contains(before.key) ? [before] : []
-    }
-    func snapshot(for key: String) throws -> PowerSettingSnapshot? {
-        log.append(.powerSnapshot(key))
-        return key == before.key ? before : nil
-    }
-    func verify(_ expected: [PowerSettingSnapshot]) throws {
-        log.append(.powerVerify)
-        guard expected == [before] else {
-            throw CheckFailure.failed("超时替身只允许校验补偿后的原值")
-        }
-    }
-    func ensureUnchanged(since expected: [PowerSettingSnapshot]) throws {
-        log.append(.powerEnsureUnchanged)
-        guard expected == [before] else {
-            throw CheckFailure.failed("超时替身预检基线不一致")
-        }
-    }
-    func ensureCurrentMatchesAny(
-        _ allowedStates: [[PowerSettingSnapshot]], operation: LocalizedText
-    ) throws {
-        log.append(.powerEnsureCurrentMatchesAny)
-        throw CheckFailure.failed("超时替身拒绝非测试恢复")
-    }
-    func authorized(_ operation: (PowerAuthorizationContext) throws -> Void) throws {
-        log.append(.powerAuthorization)
-        try operation(PowerAuthorizationContext(reference: nil))
-    }
-    func apply(_ snapshot: PowerSettingSnapshot, authorization: PowerAuthorizationContext) throws {
-        log.append(.powerApply(snapshot))
-        guard snapshot.key == before.key && snapshot.values.map(\.value) == [0] else {
-            throw CheckFailure.failed("超时替身收到错误写入")
-        }
-        throw PowerSettingsError.privilegedTimeout("recording pmset")
-    }
-    func restore(_ snapshots: [PowerSettingSnapshot], authorization: PowerAuthorizationContext) throws {
-        log.append(.powerRestore(snapshots))
-        throw CheckFailure.failed("超时替身拒绝非预期直接恢复")
-    }
-    func restorePreservingExternalChanges(
-        _ target: [PowerSettingSnapshot],
-        whenCurrentMatches allowedStates: [[PowerSettingSnapshot]],
-        authorization: PowerAuthorizationContext
-    ) throws -> [String] {
-        log.append(.powerRestorePreservingExternalChanges)
-        guard target == [before] else {
-            throw CheckFailure.failed("超时替身补偿目标不一致")
-        }
-        return []
-    }
-}
-
 private final class InMemoryApplicationState: ApplicationStateStoring {
     private var values: [String: Any] = [:]
     private(set) var writtenKeys: [String] = []
@@ -576,14 +447,12 @@ struct TerminalSettingsChecks {
         try checkUndoEncoding()
         try checkRecordingCustomizationContracts()
         try checkRecordingPrecisionEnhancements()
-        try checkPrivilegedTimeoutRetainsJournal(language: .simplifiedChinese)
-        try checkPrivilegedTimeoutRetainsJournal(language: .english)
-        try checkPrivilegedTimeoutRetainsJournal(language: .spanish)
         try checkUnreadableJournalFailClosedContract()
         try checkRefreshKeepsDisplayAndTextDrafts()
         try checkNoticeKinds()
         try checkUnverifiedSystemMessage()
         try checkCoalescedRestarts()
+        try checkTerminalPowerCommands()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -705,7 +574,7 @@ struct TerminalSettingsChecks {
         let store = PreferencesStore(
             executor: RecordingPreferenceExecutor(values: [:], allowedMutations: [], log: log),
             restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
-            powerExecutor: FailClosedPowerExecutor(log: log), journal: journal, appState: state,
+            powerReader: RecordingPowerReader(log: log), journal: journal, appState: state,
             timeProvider: FixedTimeProvider(), identifierProvider: FixedIdentifierProvider(),
             undoStorageURL: directory.appendingPathComponent("last-undo.json")
         )
@@ -1583,7 +1452,7 @@ struct TerminalSettingsChecks {
             executor: executor,
             restarter: RecordingRestarter(log: log),
             managementProvider: RecordingManagementProvider(log: log),
-            powerExecutor: FailClosedPowerExecutor(log: log),
+            powerReader: RecordingPowerReader(log: log),
             journal: RecordingJournal(expectedURL: pendingTransactionURL, log: log),
             appState: InMemoryApplicationState(),
             timeProvider: FixedTimeProvider(),
@@ -1733,9 +1602,7 @@ struct TerminalSettingsChecks {
         try require(
             !applyEvents.contains(where: { event in
                 switch event {
-                case .preferenceRestore, .preferenceRestorePreservingExternalChanges,
-                        .powerAuthorization, .powerApply, .powerRestore,
-                        .powerRestorePreservingExternalChanges:
+                case .preferenceRestore, .preferenceRestorePreservingExternalChanges:
                     return true
                 default:
                     return false
@@ -1782,7 +1649,7 @@ struct TerminalSettingsChecks {
             executor: conflictExecutor,
             restarter: RecordingRestarter(log: conflictLog),
             managementProvider: RecordingManagementProvider(log: conflictLog),
-            powerExecutor: FailClosedPowerExecutor(log: conflictLog),
+            powerReader: RecordingPowerReader(log: conflictLog),
             journal: RecordingJournal(expectedURL: conflictPendingURL, log: conflictLog),
             appState: InMemoryApplicationState(),
             timeProvider: FixedTimeProvider(),
@@ -1878,7 +1745,7 @@ struct TerminalSettingsChecks {
             let store = PreferencesStore(
                 executor: executor, restarter: RecordingRestarter(log: log),
                 managementProvider: RecordingManagementProvider(log: log, forced: forced, shouldFail: managementFails),
-                powerExecutor: FailClosedPowerExecutor(log: log),
+                powerReader: RecordingPowerReader(log: log),
                 journal: RecordingJournal(expectedURL: path.appendingPathComponent("pending-preference-transaction.json"), log: log),
                 appState: appState, timeProvider: FixedTimeProvider(), identifierProvider: FixedIdentifierProvider(),
                 undoStorageURL: path.appendingPathComponent("last-undo.json")
@@ -2100,61 +1967,6 @@ struct TerminalSettingsChecks {
     }
 
     @MainActor
-    private static func checkPrivilegedTimeoutRetainsJournal(language: AppLanguage) throws {
-        guard let item = PreferenceCatalog.items.first(where: { $0.privilegedKey == "ttyskeepawake" }) else {
-            throw CheckFailure.failed("缺少管理员超时测试项目")
-        }
-        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("TerminalSettingsPowerTimeout-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let log = RecordingDependencyLog()
-        let pendingURL = directory.appendingPathComponent("pending-preference-transaction.json")
-        let journal = RecordingJournal(expectedURL: pendingURL, log: log)
-        let state = InMemoryApplicationState()
-        state.set(language.rawValue, forKey: AppLanguageStore.preferenceKey)
-        let store = PreferencesStore(
-            executor: RecordingPreferenceExecutor(values: [:], allowedMutations: [], log: log),
-            restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
-            powerExecutor: TimedOutPowerExecutor(log: log), journal: journal,
-            appState: state, timeProvider: FixedTimeProvider(), identifierProvider: FixedIdentifierProvider(),
-            undoStorageURL: directory.appendingPathComponent("last-undo.json")
-        )
-        store.prepareCustomizationModeTest(item, parentEnabled: true)
-        let checkpoint = log.checkpoint()
-        store.setToggle(item, enabled: false)
-        try waitUntil("管理员 helper 超时替身测试未结束") { !store.isWorking }
-        let events = log.events(since: checkpoint)
-        try require(events.filter { if case .powerApply = $0 { return true }; return false }.count == 1 &&
-                    events.filter { if case .powerRestorePreservingExternalChanges = $0 { return true }; return false }.count == 1 &&
-                    events.filter { if case .powerVerify = $0 { return true }; return false }.count == 1,
-                    "超时路径必须尝试并验证补偿")
-        try require(store.hasPendingPreferenceTransaction &&
-                    PreferenceCatalog.items.allSatisfy { !store.canModify($0) } &&
-                    store.alert?.message.contains("helper") == true,
-                    "补偿成功但 helper 状态未知时必须保留 WAL 并锁定写入")
-        let retainedRecord = try journal.read(from: pendingURL)
-        let resources = try localizationTestResources()
-        let rendered = store.alert!.message.rendered(language: language, resources: resources)
-        let expectedPhrase: String
-        switch language {
-        case .english: expectedPhrase = "recovery journal"
-        case .spanish: expectedPhrase = "diario de recuperación"
-        default: expectedPhrase = "恢复日志"
-        }
-        try require(rendered.contains(expectedPhrase),
-                    "管理员超时错误没有按所选语言显示")
-        try require(retainedRecord?.powerBefore?.first?.key == "ttyskeepawake" &&
-                    !events.contains { if case .journalRemove = $0 { return true }; return false },
-                    "helper 超时路径删除了需要保留的恢复日志")
-        try require(!events.contains { event in
-            switch event {
-            case .preferenceApply, .preferenceRestore, .preferenceRestorePreservingExternalChanges, .restart: return true
-            default: return false
-            }
-        }, "管理员超时替身不应产生普通偏好或进程重启")
-    }
-
-    @MainActor
     private static func checkUnreadableJournalFailClosedContract() throws {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(
@@ -2182,7 +1994,7 @@ struct TerminalSettingsChecks {
                 executor: executor,
                 restarter: RecordingRestarter(log: log),
                 managementProvider: RecordingManagementProvider(log: log),
-                powerExecutor: FailClosedPowerExecutor(log: log),
+                powerReader: RecordingPowerReader(log: log),
                 journal: journal,
                 appState: InMemoryApplicationState(),
                 timeProvider: FixedTimeProvider(),
@@ -2247,8 +2059,7 @@ struct TerminalSettingsChecks {
                 switch event {
                 case .journalRemove, .journalPersist, .preferenceApply,
                         .preferenceRestore, .preferenceRestorePreservingExternalChanges,
-                        .restart, .powerAuthorization, .powerApply, .powerRestore,
-                        .powerRestorePreservingExternalChanges:
+                        .restart:
                     return true
                 default:
                     return false
@@ -2565,7 +2376,7 @@ struct TerminalSettingsChecks {
         let store = PreferencesStore(
             executor: executor, restarter: RecordingRestarter(log: log),
             managementProvider: RecordingManagementProvider(log: log),
-            powerExecutor: FailClosedPowerExecutor(log: log),
+            powerReader: RecordingPowerReader(log: log),
             journal: RecordingJournal(
                 expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"),
                 log: log
@@ -2645,7 +2456,7 @@ struct TerminalSettingsChecks {
                     log: log
                 ),
                 restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
-                powerExecutor: FailClosedPowerExecutor(log: log), journal: StickyJournal(clears: clearsJournal),
+                powerReader: RecordingPowerReader(log: log), journal: StickyJournal(clears: clearsJournal),
                 appState: InMemoryApplicationState(), timeProvider: FixedTimeProvider(),
                 identifierProvider: FixedIdentifierProvider(),
                 undoStorageURL: directory.appendingPathComponent("last-undo.json")
@@ -2695,7 +2506,7 @@ struct TerminalSettingsChecks {
             executor: RecordingPreferenceExecutor(values: [:], allowedMutations: mutations,
                                                   allowedRestores: restores, log: log),
             restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
-            powerExecutor: FailClosedPowerExecutor(log: log),
+            powerReader: RecordingPowerReader(log: log),
             journal: RecordingJournal(
                 expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"), log: log
             ),
@@ -2780,6 +2591,134 @@ struct TerminalSettingsChecks {
         try waitUntil("退出时程序坞未重启", timeout: 1) { !restarts(since: checkpoint).isEmpty }
         try require(restarts(since: checkpoint) == [["Dock"]] && store.restartCountdowns.isEmpty,
                     "退出时倒计时中的程序坞应立即重启一次")
+    }
+
+    /// Advanced switches no longer write. A power record left by an earlier
+    /// version is resolved through Terminal commands and an explicit check,
+    /// and an unfinished one unlocks writes only in a fully consistent state.
+    @MainActor
+    private static func checkTerminalPowerCommands() throws {
+        guard let advanced = PreferenceCatalog.items.first(where: { $0.privilegedKey == "ttyskeepawake" }),
+              let ordinary = PreferenceCatalog.items.first(where: { $0.id == "finder.posixTitle" }) else {
+            throw CheckFailure.failed("缺少终端电源命令测试项目")
+        }
+        let before = PowerSettingSnapshot(key: "ttyskeepawake", values: [
+            PowerSourceValue(source: .battery, value: 1), PowerSourceValue(source: .charger, value: 1)
+        ])
+        let after = PowerSettingSnapshot(key: "ttyskeepawake", values: [
+            PowerSourceValue(source: .battery, value: 0), PowerSourceValue(source: .charger, value: 0)
+        ])
+        let partial = PowerSettingSnapshot(key: "ttyskeepawake", values: [
+            PowerSourceValue(source: .battery, value: 0), PowerSourceValue(source: .charger, value: 1)
+        ])
+        let record = UndoRecord(
+            title: "旧版高级更改", before: [], after: [], restartProcesses: [],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            powerBefore: [before], powerAfter: [after]
+        )
+        let base = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("TerminalSettingsLegacyPower-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        func makeStore(_ name: String, current: PowerSettingSnapshot, pending: Bool) throws
+            -> (PreferencesStore, RecordingPowerReader, RecordingJournal, RecordingDependencyLog, URL, URL) {
+            let directory = base.appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let log = RecordingDependencyLog()
+            let reader = RecordingPowerReader(log: log, snapshots: [current])
+            let pendingURL = directory.appendingPathComponent("pending-preference-transaction.json")
+            let undoURL = directory.appendingPathComponent("last-undo.json")
+            let journal = RecordingJournal(expectedURL: pendingURL, log: log)
+            if pending {
+                try journal.persist(record, to: pendingURL)
+            } else {
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                try encoder.encode(PersistedUndoEnvelope(schemaVersion: 4, record: record)).write(to: undoURL)
+            }
+            let store = PreferencesStore(
+                executor: RecordingPreferenceExecutor(values: [:], allowedMutations: [], log: log),
+                restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
+                powerReader: reader, journal: journal, appState: InMemoryApplicationState(),
+                timeProvider: FixedTimeProvider(), identifierProvider: FixedIdentifierProvider(),
+                undoStorageURL: undoURL
+            )
+            store.refreshAll()
+            try waitUntil("旧版高级记录测试的初次读取未完成") { !store.isWorking }
+            return (store, reader, journal, log, pendingURL, undoURL)
+        }
+
+        // A completed record: Terminal commands instead of in-app undo.
+        var (store, reader, journal, log, pendingURL, undoURL) = try makeStore("completed", current: after, pending: false)
+        guard let completed = store.legacyPowerRecord else {
+            throw CheckFailure.failed("旧版高级撤销记录未被识别")
+        }
+        try require(!completed.isPending && !store.canUndo && store.undoSummary == nil &&
+                        completed.restoreCommands == ["sudo pmset -b ttyskeepawake 1", "sudo pmset -c ttyskeepawake 1"],
+                    "旧版高级撤销记录应改为终端恢复命令，且不可在应用内撤销")
+        let checkpoint = log.checkpoint()
+        store.setToggle(advanced, enabled: true)
+        try require(log.events(since: checkpoint).isEmpty && !store.isWorking &&
+                        store.displayedToggleOverrides.isEmpty,
+                    "高级开关不应再产生任何读取、授权或写入")
+        store.recheckLegacyPowerRecord()
+        try waitUntil("旧版记录重新检查未完成") { !store.isWorking }
+        try require(store.legacyPowerRecord != nil && store.legacyPowerCanKeepCurrent &&
+                        store.notice?.kind == .warning,
+                    "仍为更改后状态时应保留记录，并允许保留当前状态")
+        store.keepCurrentLegacyPowerState()
+        try require(store.legacyPowerRecord == nil && !FileManager.default.fileExists(atPath: undoURL.path) &&
+                        store.notice?.kind == .success,
+                    "保留当前状态后应移除旧版高级撤销记录")
+
+        (store, reader, journal, log, pendingURL, undoURL) = try makeStore("restored", current: before, pending: false)
+        store.recheckLegacyPowerRecord()
+        try waitUntil("已恢复记录的检查未完成") { !store.isWorking }
+        try require(store.legacyPowerRecord == nil && !FileManager.default.fileExists(atPath: undoURL.path) &&
+                        store.notice?.kind == .success,
+                    "恢复到更改前状态后应自动移除旧版高级撤销记录")
+
+        // An unfinished journal locks writes until the state is consistent.
+        (store, reader, journal, log, pendingURL, undoURL) = try makeStore("pending", current: partial, pending: true)
+        try require(store.legacyPowerRecord?.isPending == true && store.hasPendingPreferenceTransaction &&
+                        !store.canModify(ordinary) && store.alert?.title == L("检测到旧版本未完成的高级电源事务"),
+                    "旧版未完成高级事务应锁定写入并提示在终端恢复")
+        store.keepCurrentLegacyPowerState()
+        try require(!store.isWorking && store.hasPendingPreferenceTransaction,
+                    "未经检查不应移除未完成的高级事务")
+        store.recheckLegacyPowerRecord()
+        try waitUntil("部分写入状态的检查未完成") { !store.isWorking }
+        try require(store.hasPendingPreferenceTransaction && !store.legacyPowerCanKeepCurrent &&
+                        store.notice?.kind == .warning,
+                    "跨电源来源的部分写入状态必须保持锁定")
+        reader.set([after])
+        store.recheckLegacyPowerRecord()
+        try waitUntil("更改后状态的检查未完成") { !store.isWorking }
+        try require(store.hasPendingPreferenceTransaction && store.legacyPowerCanKeepCurrent,
+                    "完整的更改后状态应允许用户选择保留")
+        reader.set([partial])
+        store.keepCurrentLegacyPowerState()
+        try waitUntil("保留前的再次检查未完成") { !store.isWorking }
+        try require(store.hasPendingPreferenceTransaction && !store.legacyPowerCanKeepCurrent,
+                    "确认前状态又变为部分写入时不应解除锁定")
+        reader.set([before])
+        store.recheckLegacyPowerRecord()
+        try waitUntil("恢复后状态的检查未完成") { !store.isWorking }
+        var remainingJournal = try journal.read(from: pendingURL)
+        try require(!store.hasPendingPreferenceTransaction && store.legacyPowerRecord == nil &&
+                        store.canModify(ordinary) && remainingJournal == nil &&
+                        store.notice?.kind == .success,
+                    "恢复到更改前状态后应移除日志并解除写入锁定")
+
+        (store, reader, journal, log, pendingURL, undoURL) = try makeStore("pending-kept", current: after, pending: true)
+        store.recheckLegacyPowerRecord()
+        try waitUntil("保留路径的检查未完成") { !store.isWorking }
+        store.keepCurrentLegacyPowerState()
+        try waitUntil("保留路径的确认未完成") { !store.isWorking }
+        remainingJournal = try journal.read(from: pendingURL)
+        try require(!store.hasPendingPreferenceTransaction && store.legacyPowerRecord == nil &&
+                        store.canModify(ordinary) && remainingJournal == nil,
+                    "完整的更改后状态经确认保留后应解除写入锁定")
     }
 
     private static func checkUnverifiedSystemMessage() throws {
@@ -2965,7 +2904,7 @@ struct TerminalSettingsChecks {
         UPS Power:
          ttyskeepawake        1
         """
-        let profiles = PowerSettingsExecutor.parseProfiles(fixture)
+        let profiles = PowerSettingsReader.parseProfiles(fixture)
         try require(
             profiles[.battery]?["ttyskeepawake"] == 0,
             "未解析电池电源的 pmset 值"
@@ -2983,7 +2922,7 @@ struct TerminalSettingsChecks {
             "非整数 pmset 值不应进入受控状态"
         )
 
-        let executor = PowerSettingsExecutor()
+        let executor = PowerSettingsReader()
         let current = try executor.snapshots(for: [
             "ttyskeepawake", "proximitywake", "acwake"
         ])
@@ -3235,7 +3174,7 @@ struct TerminalSettingsChecks {
             ]
         )
         try require(
-            PowerSettingsExecutor.recoveryConflicts(
+            PowerSettingsReader.recoveryConflicts(
                 allowedStates: [[powerBefore], [powerAfter]],
                 current: [partialPower]
             ).isEmpty,
@@ -3246,7 +3185,7 @@ struct TerminalSettingsChecks {
             values: [PowerSourceValue(source: .battery, value: 0)]
         )
         try require(
-            !PowerSettingsExecutor.recoveryConflicts(
+            !PowerSettingsReader.recoveryConflicts(
                 allowedStates: [[powerBefore], [powerAfter]],
                 current: [missingSource]
             ).isEmpty,
@@ -3260,7 +3199,7 @@ struct TerminalSettingsChecks {
             ]
         )
         try require(
-            !PowerSettingsExecutor.recoveryConflicts(
+            !PowerSettingsReader.recoveryConflicts(
                 allowedStates: [[powerBefore], [powerAfter]],
                 current: [thirdValue]
             ).isEmpty,

@@ -27,7 +27,6 @@ HAD_ARCHIVE=0
 STAGED_APP="$STAGING/TerminalSettings.app"
 STAGED_ARCHIVE="$STAGING/TerminalSettings.zip"
 CONTENTS="$STAGED_APP/Contents"
-BRIDGE_OBJECT="$STAGING/AuthorizationBridge.o"
 
 # A failed replacement restores the preceding pair. Keep backup files if a
 # rollback itself fails so they can be recovered manually. As with any shell
@@ -63,12 +62,6 @@ trap 'exit 143' TERM
 
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$MODULE_CACHE"
 
-"$CLANG" \
-  -target arm64-apple-macos14.0 \
-  -isysroot "$SDK" \
-  -Wno-deprecated-declarations \
-  -c "$ROOT/Source/AuthorizationBridge.c" \
-  -o "$BRIDGE_OBJECT"
 
 "$SWIFTC" \
   -swift-version 5 \
@@ -79,7 +72,6 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$MODULE_CACHE"
   -module-cache-path "$MODULE_CACHE" \
   -framework SwiftUI \
   -framework AppKit \
-  -framework Security \
   -Xlinker -platform_version \
   -Xlinker macos \
   -Xlinker 14.0 \
@@ -88,11 +80,10 @@ mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$MODULE_CACHE"
   "$ROOT/Source/Models.swift" \
   "$ROOT/Source/Catalog.swift" \
   "$ROOT/Source/Dependencies.swift" \
-  "$ROOT/Source/PowerSettingsExecutor.swift" \
+  "$ROOT/Source/PowerSettingsReader.swift" \
   "$ROOT/Source/PreferencesStore.swift" \
   "$ROOT/Source/Views.swift" \
   "$ROOT/Source/TerminalSettingsApp.swift" \
-  "$BRIDGE_OBJECT" \
   -o "$CONTENTS/MacOS/TerminalSettings"
 
 cp "$ROOT/Info.plist" "$CONTENTS/Info.plist"

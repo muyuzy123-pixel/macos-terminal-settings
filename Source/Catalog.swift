@@ -1082,7 +1082,7 @@ enum PreferenceCatalog {
             symbol: "terminal.fill",
             control: .privilegedToggle(PrivilegedTogglePreference(key: "ttyskeepawake")),
             restartProcesses: [],
-            effectHint: L("按此 Mac 现有电源来源立即生效"),
+            effectHint: L("在“终端”运行命令后刷新状态"),
             caution: .privileged,
             compatibility: advancedCompatibility,
             evidence: pmsetEvidence
@@ -1095,7 +1095,7 @@ enum PreferenceCatalog {
             symbol: "wave.3.right.circle.fill",
             control: .privilegedToggle(PrivilegedTogglePreference(key: "proximitywake")),
             restartProcesses: [],
-            effectHint: L("按此 Mac 现有电源来源立即生效"),
+            effectHint: L("在“终端”运行命令后刷新状态"),
             caution: .privileged,
             compatibility: advancedCompatibility,
             evidence: pmsetEvidence
@@ -1108,7 +1108,7 @@ enum PreferenceCatalog {
             symbol: "powerplug.fill",
             control: .privilegedToggle(PrivilegedTogglePreference(key: "acwake")),
             restartProcesses: [],
-            effectHint: L("按此 Mac 现有电源来源立即生效"),
+            effectHint: L("在“终端”运行命令后刷新状态"),
             caution: .privileged,
             compatibility: advancedCompatibility,
             evidence: pmsetEvidence
