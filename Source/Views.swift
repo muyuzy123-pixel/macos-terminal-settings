@@ -1311,12 +1311,18 @@ private struct NoticeHost: View {
     let undo: () -> Void
     let dismiss: (UUID) -> Void
     @State private var isHovering = false
+    @State private var dismissalPolicy: NoticeDismissalPolicy?
+    private let voiceOverChanges = NSWorkspace.shared.publisher(for: \.isVoiceOverEnabled)
+        .receive(on: RunLoop.main)
 
     var body: some View {
         ZStack(alignment: .bottom) {
             if let notice {
                 NoticeView(notice: notice, undo: undo, dismiss: { dismiss(notice.id) })
-                    .onHover { isHovering = $0 }
+                    .onHover { hovering in
+                        isHovering = hovering
+                        updateDismissalPolicy(isVoiceOverEnabled: NSWorkspace.shared.isVoiceOverEnabled)
+                    }
                     .frame(maxWidth: 680)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 18)
@@ -1324,8 +1330,11 @@ private struct NoticeHost: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: notice?.id)
+        .onReceive(voiceOverChanges) { enabled in
+            updateDismissalPolicy(isVoiceOverEnabled: enabled)
+        }
         .task(id: notice?.id) {
-            guard let notice else { return }
+            guard let notice, !Task.isCancelled else { return }
             NSAccessibility.post(
                 element: NSApp as Any,
                 notification: .announcementRequested,
@@ -1334,16 +1343,37 @@ private struct NoticeHost: View {
                     .priority: NSAccessibilityPriorityLevel.high.rawValue
                 ]
             )
-            // Confirmations clear themselves after a pause, held while the
-            // pointer rests on them. Warnings, and every notice while
-            // VoiceOver runs, stay until closed.
-            guard notice.kind == .success, !NSWorkspace.shared.isVoiceOverEnabled else { return }
-            try? await Task.sleep(for: .seconds(6))
-            while isHovering, !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(500))
+            // Hover events update the same policy between ticks, preserving
+            // the full six seconds of non-hovering reading time.
+            while !Task.isCancelled, self.notice?.id == notice.id {
+                updateDismissalPolicy(isVoiceOverEnabled: NSWorkspace.shared.isVoiceOverEnabled)
+                guard let policy = dismissalPolicy, policy.noticeID == notice.id else { return }
+                if let id = policy.dismissalID(currentNoticeID: self.notice?.id,
+                                               taskIsCancelled: Task.isCancelled) {
+                    dismiss(id)
+                    return
+                }
+                guard !policy.automaticDismissalCancelled else { return }
+                do {
+                    try await Task.sleep(for: .milliseconds(100))
+                } catch {
+                    return
+                }
             }
-            guard !Task.isCancelled else { return }
-            dismiss(notice.id)
+        }
+    }
+
+    private func updateDismissalPolicy(isVoiceOverEnabled: Bool) {
+        guard let notice else { return }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        if var policy = dismissalPolicy, policy.noticeID == notice.id {
+            policy.update(uptime: uptime, isHovering: isHovering,
+                          isVoiceOverEnabled: isVoiceOverEnabled)
+            dismissalPolicy = policy
+        } else {
+            dismissalPolicy = NoticeDismissalPolicy(notice: notice, uptime: uptime,
+                                                    isHovering: isHovering,
+                                                    isVoiceOverEnabled: isVoiceOverEnabled)
         }
     }
 }

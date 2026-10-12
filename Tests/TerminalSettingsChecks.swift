@@ -581,6 +581,7 @@ struct TerminalSettingsChecks {
         try checkUnreadableJournalFailClosedContract()
         try checkRefreshKeepsDisplayAndTextDrafts()
         try checkNoticeKinds()
+        try checkNoticeDismissalPolicy()
         try checkUnverifiedSystemMessage()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
@@ -2647,6 +2648,70 @@ struct TerminalSettingsChecks {
             store.dismissNotice(id: notice.id)
             try require(store.notice == nil, "按 id 关闭未移除对应通知")
         }
+    }
+
+    private static func checkNoticeDismissalPolicy() throws {
+        let notice = AppNotice(message: "timer contract", canUndo: true)
+        func policy(hovering: Bool = false, voiceOver: Bool = false) -> NoticeDismissalPolicy {
+            NoticeDismissalPolicy(notice: notice, uptime: 0, isHovering: hovering,
+                                  isVoiceOverEnabled: voiceOver)
+        }
+        func canDismiss(_ policy: NoticeDismissalPolicy) -> Bool {
+            policy.dismissalID(currentNoticeID: notice.id, taskIsCancelled: false) == notice.id
+        }
+
+        var uninterrupted = policy()
+        uninterrupted.update(uptime: 5.99, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(uninterrupted), "成功通知在六秒阅读时间前被关闭")
+        uninterrupted.update(uptime: 6, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(uninterrupted), "成功通知六秒后未到期")
+
+        var paused = policy()
+        paused.update(uptime: 1, isHovering: true, isVoiceOverEnabled: false)
+        paused.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        paused.update(uptime: 6, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(paused) && paused.remainingReadableTime == 2,
+                    "悬停一至三秒没有暂停通知计时")
+        paused.update(uptime: 8, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(paused), "悬停后没有累计完整六秒阅读时间")
+
+        var initiallyHovered = policy(hovering: true)
+        initiallyHovered.update(uptime: 7, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initiallyHovered) && initiallyHovered.remainingReadableTime == 6,
+                    "悬停跨过原截止时间后通知在离开时立即关闭")
+        initiallyHovered.update(uptime: 12.99, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initiallyHovered), "初始悬停后的六秒阅读时间被缩短")
+        initiallyHovered.update(uptime: 13, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(initiallyHovered), "初始悬停后的通知没有到期")
+
+        var toggledVoiceOver = policy()
+        toggledVoiceOver.update(uptime: 2, isHovering: false, isVoiceOverEnabled: true)
+        toggledVoiceOver.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        toggledVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(toggledVoiceOver.automaticDismissalCancelled && !canDismiss(toggledVoiceOver),
+                    "通知期间启用再关闭 VoiceOver 后仍会自动关闭")
+        var hoveredVoiceOver = policy(hovering: true)
+        hoveredVoiceOver.update(uptime: 2, isHovering: true, isVoiceOverEnabled: true)
+        hoveredVoiceOver.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        hoveredVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(hoveredVoiceOver), "悬停期间启用 VoiceOver 没有取消自动关闭")
+        var initialVoiceOver = policy(voiceOver: true)
+        initialVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initialVoiceOver), "初始启用 VoiceOver 的通知会自动关闭")
+
+        let warning = AppNotice(message: "warning contract", canUndo: true, kind: .warning)
+        var warningPolicy = NoticeDismissalPolicy(notice: warning, uptime: 0, isHovering: false,
+                                                 isVoiceOverEnabled: false)
+        warningPolicy.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(warningPolicy.automaticDismissalCancelled &&
+                        warningPolicy.dismissalID(currentNoticeID: warning.id, taskIsCancelled: false) == nil,
+                    "警告通知会自动关闭")
+        try require(uninterrupted.dismissalID(currentNoticeID: notice.id, taskIsCancelled: true) == nil,
+                    "已取消的通知任务仍然可以关闭通知")
+        try require(uninterrupted.dismissalID(currentNoticeID: UUID(), taskIsCancelled: false) == nil &&
+                        uninterrupted.dismissalID(currentNoticeID: nil, taskIsCancelled: false) == nil,
+                    "旧通知的计时策略可以关闭替换后的通知")
+        print("Notice dismissal contracts passed: readable time, hover pause, sticky VoiceOver, warnings, cancellation, and notice identity")
     }
 
     private static func checkUnverifiedSystemMessage() throws {
