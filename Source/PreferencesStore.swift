@@ -580,6 +580,39 @@ struct PersistedProcessRestarts: Codable {
     }
 }
 
+/// The view supplies monotonic timestamps for timer ticks and hover changes.
+/// VoiceOver cancels automatic dismissal for this notice, even if later disabled.
+struct NoticeDismissalPolicy {
+    let noticeID: UUID
+    private(set) var remainingReadableTime: TimeInterval = 6
+    private(set) var automaticDismissalCancelled: Bool
+    private var lastUptime: TimeInterval
+    private var wasHovering: Bool
+
+    init(notice: AppNotice, uptime: TimeInterval, isHovering: Bool, isVoiceOverEnabled: Bool) {
+        noticeID = notice.id
+        lastUptime = uptime
+        wasHovering = isHovering
+        automaticDismissalCancelled = notice.kind == .warning || isVoiceOverEnabled
+    }
+
+    mutating func update(uptime: TimeInterval, isHovering: Bool, isVoiceOverEnabled: Bool) {
+        let elapsed = max(0, uptime - lastUptime)
+        lastUptime = max(lastUptime, uptime)
+        if !wasHovering, !automaticDismissalCancelled {
+            remainingReadableTime = max(0, remainingReadableTime - elapsed)
+        }
+        wasHovering = isHovering
+        if isVoiceOverEnabled { automaticDismissalCancelled = true }
+    }
+
+    func dismissalID(currentNoticeID: UUID?, taskIsCancelled: Bool) -> UUID? {
+        guard !taskIsCancelled, !automaticDismissalCancelled, !wasHovering,
+              remainingReadableTime <= 0, currentNoticeID == noticeID else { return nil }
+        return noticeID
+    }
+}
+
 struct PreferenceChangeFailure: LocalizedError, DisplayMessageError {
     let message: LocalizedText
     var helperOutcomeIsUnknown = false
