@@ -27,7 +27,7 @@ The app includes **40 settings across 8 categories**, with **7 numeric control g
 | Keyboard | 2 | Key repeat rate and press-and-hold behavior |
 | Windows & dialogs | 7 | Window animations and expanded save dialogs |
 | System & development | 4 | Menu bar spacing and screen saver idle time |
-| Advanced | 3 | Supported power wake and keep-awake flags |
+| Advanced | 3 | Power wake and keep-awake flags (read-only; changed with Terminal commands) |
 
 - **See what will change.** View current values, descriptions, risk labels, sources, and equivalent commands.
 - **Edit precise values.** Keep numeric drafts separate from the current system value; review the submission paths described below.
@@ -45,7 +45,7 @@ The catalog distinguishes **34 Terminal-only settings**, **4 System Settings enh
 | Local validation | macOS 26.6.2; real-device macOS 14 acceptance is still outstanding |
 | Distribution | Preview build, ad-hoc signed with Hardened Runtime; no Developer ID or notarization |
 
-This release passed contract, build, archive, and isolated GUI smoke checks. Earlier isolated integration and broader directed GUI results are recorded separately in [release status](docs/RELEASE_STATUS.md). These checks do not establish that all UI effects or real administrator writes have been accepted on a device; see [testing](docs/TESTING.md).
+This release passed contract, build, archive, and isolated GUI smoke checks. Earlier isolated integration and broader directed GUI results are recorded separately in [release status](docs/RELEASE_STATUS.md). These checks do not establish that all UI effects have been accepted on a device; see [testing](docs/TESTING.md).
 
 1. Open the [preview release](https://github.com/muyuzy123-pixel/macos-terminal-settings/releases/tag/v1.9.0-preview.2) and download `TerminalSettings.zip` and `SHA256SUMS` from **Assets**. The release also includes `release-manifest.json` with build and verification details.
 2. In the folder containing both downloaded files, verify the archive:
@@ -65,7 +65,7 @@ Choose **语言 / Language** (shown as **Idioma / Language** in Spanish) in Over
 
 **Numeric edits update drafts first.** Expanding an editor, moving a slider, typing a value, selecting a draft preset, or loading the current value does not by itself change system preferences. **Apply** buttons submit changes; **turning on the corresponding feature may also apply the selected custom draft**. Numeric drafts and editing modes are retained between launches.
 
-**Main feature switches and menus that directly select system values execute changes when operated**—for example, Dock alignment and screenshot file format. Language selection, draft presets, and the custom-editing mode switch only update app state or drafts. Some changes take effect only after Dock or Finder restarts. Dock restarts once, 3 seconds after your last such change; choose **Later** to postpone it. Finder restarts only when you click **Restart Finder Now**, because relaunching it reopens its windows and can interrupt a copy. If you quit during Dock's countdown, Dock restarts immediately; postponed and Finder restarts are left to you. Advanced actions require confirmation and administrator authorization. **Restore This Page** sits next to each category title and asks for confirmation first. Follow the effect and restart information shown for the setting.
+**Main feature switches and menus that directly select system values execute changes when operated**—for example, Dock alignment and screenshot file format. Language selection, draft presets, and the custom-editing mode switch only update app state or drafts. Some changes take effect only after Dock or Finder restarts. Dock restarts once, 3 seconds after your last such change; choose **Later** to postpone it. Finder restarts only when you click **Restart Finder Now**, because relaunching it reopens its windows and can interrupt a copy. If you quit during Dock's countdown, Dock restarts immediately; postponed and Finder restarts are left to you. The Advanced category only reads its power settings and offers fixed `sudo pmset` commands to copy and run in Terminal; the app never requests administrator authorization. **Restore This Page** sits next to each category title and asks for confirmation first. Follow the effect and restart information shown for the setting.
 
 Recovery actions have distinct meanings:
 
@@ -75,19 +75,19 @@ Recovery actions have distinct meanings:
 | Delete current explicit value | When checks allow, removes the current override, including one originally set by another tool; the system then resolves the effective value. This is not a factory reset and does not bypass management restrictions |
 | Restore pre-app value | Restores the recorded value or absence from before the app first took control; restoration is blocked when an external change is detected |
 
-Advanced power settings have no guessed factory-default reset: switching one off writes `0`, while Undo uses the previous per-power-source snapshot. Items with managed, unreadable, conflicting, or unresolved recovery state may remain read-only.
+Advanced power settings change only through the copied Terminal commands: an off command writes `0`, and these changes are not part of in-app Undo. Items with managed, unreadable, conflicting, or unresolved recovery state may remain read-only.
 
 Deleting `TerminalSettings.app` does not automatically undo applied settings or clear the app’s local preferences and recovery records. To revert changes, first use the available Undo or per-setting recovery actions. Keep recovery data while a transaction is unresolved; deleting its journal does not safely resolve it.
 
 ## Permissions and local data
 
-Ordinary settings use the current user's preferences, including current-host domains where required. Advanced actions allow only three `pmset` Boolean keys: `ttyskeepawake`, `proximitywake`, and `acwake`.
+Ordinary settings use the current user's preferences, including current-host domains where required. The Advanced category reads only three `pmset` Boolean keys: `ttyskeepawake`, `proximitywake`, and `acwake`. The app starts no privileged process.
 
 The app requests no Accessibility, Screen Recording, Automation, Full Disk Access, or Input Monitoring permissions. There is no telemetry, network client, or automatic updater in the app; reference links open in the system browser.
 
 Language choice, numeric drafts, and per-setting recovery baselines live in the app's preferences. The last-undo file and pending transaction journal live in its local Application Support directory. The bundle identifier remains `com.codex.TerminalSettings` for record compatibility.
 
-The advanced authorization bridge currently uses the deprecated `AuthorizationExecuteWithPrivileges` API. A modern signed helper remains future work. See [SECURITY.md](SECURITY.md) for this and other limitations.
+Earlier builds wrote these power settings through the deprecated `AuthorizationExecuteWithPrivileges` API. This build removes that path; a signed helper may return once Developer ID signing is available. If an earlier build left a power undo record or an unfinished power change, the app shows the Terminal commands that restore the earlier state and removes the record after **Check Again** confirms a consistent state. See [SECURITY.md](SECURITY.md) for other limitations.
 
 ## Build from source
 
