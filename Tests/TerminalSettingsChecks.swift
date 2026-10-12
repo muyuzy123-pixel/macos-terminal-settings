@@ -1,3 +1,4 @@
+import Combine
 import Darwin
 import Foundation
 
@@ -552,6 +553,7 @@ struct TerminalSettingsChecks {
         try checkPrivilegedTimeoutRetainsJournal(language: .english)
         try checkPrivilegedTimeoutRetainsJournal(language: .spanish)
         try checkUnreadableJournalFailClosedContract()
+        try checkRefreshKeepsDisplayAndTextDrafts()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -2489,6 +2491,93 @@ struct TerminalSettingsChecks {
             !store.canUndo && !FileManager.default.fileExists(atPath: undoStorageURL.path),
             "目录外事务不应创建可执行撤销记录"
         )
+    }
+
+    /// A refresh that follows a completed transaction keeps the page readable,
+    /// and only a transaction on the text item itself replaces unapplied input.
+    @MainActor
+    private static func checkRefreshKeepsDisplayAndTextDrafts() throws {
+        guard let nameItem = PreferenceCatalog.items.first(where: { $0.id == "screenshots.name" }),
+              case .text(let namePreference) = nameItem.control,
+              let toggleItem = PreferenceCatalog.items.first(where: { $0.id == "finder.posixTitle" }),
+              case .toggle(let togglePreference) = toggleItem.control else {
+            throw CheckFailure.failed("缺少刷新回归测试项目")
+        }
+        let nameAddress = namePreference.address
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("TerminalSettingsRefresh-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let log = RecordingDependencyLog()
+        let executor = RecordingPreferenceExecutor(
+            values: [nameAddress: .string("原有前缀")],
+            allowedMutations: togglePreference.enableMutations.map { ($0.address, $0.value) } + [
+                (nameAddress, .string("草稿前缀")),
+                (nameAddress, .string("外部前缀"))
+            ],
+            allowedRestores: [PreferenceSnapshot(address: nameAddress, value: .string("原有前缀"))],
+            log: log
+        )
+        let store = PreferencesStore(
+            executor: executor, restarter: RecordingRestarter(log: log),
+            managementProvider: RecordingManagementProvider(log: log),
+            powerExecutor: FailClosedPowerExecutor(log: log),
+            journal: RecordingJournal(
+                expectedURL: directory.appendingPathComponent("pending-preference-transaction.json"),
+                log: log
+            ),
+            appState: InMemoryApplicationState(), timeProvider: FixedTimeProvider(),
+            identifierProvider: FixedIdentifierProvider(),
+            undoStorageURL: directory.appendingPathComponent("last-undo.json")
+        )
+        store.refreshAll()
+        try waitUntil("刷新回归测试的初次读取未完成") { !store.isWorking }
+        try require(store.textDrafts[nameItem.id] == "原有前缀", "文字草稿未载入系统当前值")
+
+        // Record every published state so a transient loading flash is caught
+        // even when the follow-up read finishes within one run-loop turn.
+        var showedLoading = false
+        let observers = [
+            store.$readStates.sink { states in
+                if states.values.contains(.loading) { showedLoading = true }
+            },
+            store.$customizationCurrentValues.sink { values in
+                if values.values.contains(where: { $0.values.contains(.loading) }) { showedLoading = true }
+            }
+        ]
+        defer { observers.forEach { $0.cancel() } }
+
+        store.textDrafts[nameItem.id] = "草稿前缀"
+        store.setToggle(toggleItem, enabled: true)
+        try waitUntil("其他项目写入未完成") { !store.isWorking }
+        try require(store.isEnabled(toggleItem), "其他项目写入未生效")
+        try require(store.textDrafts[nameItem.id] == "草稿前缀", "其他项目写入后的刷新覆盖了未应用的文字草稿")
+        try require(!showedLoading, "写入后的刷新让页面闪回读取中状态")
+        try require(store.readStates[nameItem.id] == .configured(LocalizedText(verbatim: "原有前缀")),
+                    "保留草稿时文字项目未显示系统当前值")
+
+        store.applyText(nameItem)
+        try waitUntil("文字写入未完成") { !store.isWorking }
+        try require(executor.value(for: nameAddress) == .string("草稿前缀") &&
+                    store.textDrafts[nameItem.id] == "草稿前缀", "文字应用后草稿未与系统值同步")
+
+        store.textDrafts[nameItem.id] = "未应用的新草稿"
+        store.undo()
+        try waitUntil("撤销文字更改未完成") { !store.isWorking }
+        try require(executor.value(for: nameAddress) == .string("原有前缀") &&
+                    store.textDrafts[nameItem.id] == "原有前缀", "撤销本项后文字草稿未跟随系统值")
+        try require(!showedLoading, "撤销后的刷新让页面闪回读取中状态")
+
+        store.textDrafts[nameItem.id] = "保留的草稿"
+        store.refreshAll()
+        try waitUntil("手动刷新未完成") { !store.isWorking }
+        try require(store.textDrafts[nameItem.id] == "保留的草稿", "手动刷新覆盖了未应用的文字草稿")
+        try require(showedLoading, "手动刷新应先标记读取中")
+
+        store.textDrafts[nameItem.id] = "原有前缀"
+        try executor.apply(PreferenceMutation(address: nameAddress, value: .string("外部前缀")))
+        store.refreshAll()
+        try waitUntil("外部修改后的刷新未完成") { !store.isWorking }
+        try require(store.textDrafts[nameItem.id] == "外部前缀", "未编辑的文字草稿没有跟随外部新值")
     }
 
     @MainActor
