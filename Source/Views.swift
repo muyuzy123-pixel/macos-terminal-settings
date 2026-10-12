@@ -39,11 +39,21 @@ struct ContentView: View {
         } detail: {
             ZStack(alignment: .bottom) {
                 detail
-                NoticeHost(
-                    notice: store.notice,
-                    undo: store.undo,
-                    dismiss: { store.dismissNotice(id: $0) }
-                )
+                VStack(spacing: 10) {
+                    VStack(spacing: 10) {
+                        ForEach(store.pendingRestarts.keys.sorted(), id: \.self) { process in
+                            RestartBanner(process: process, store: store)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, store.notice == nil && !store.pendingRestarts.isEmpty ? 18 : 0)
+                    NoticeHost(
+                        notice: store.notice,
+                        undo: store.undo,
+                        dismiss: { store.dismissNotice(id: $0) }
+                    )
+                }
+                .animation(.easeInOut(duration: 0.18), value: store.pendingRestarts.keys.sorted())
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -634,7 +644,7 @@ struct PreferenceRow: View {
     }
 
     private func selectedChoiceTitle(_ preference: ChoicePreference) -> LocalizedText {
-        let selected = store.selectedChoice(item)
+        let selected = store.displayedChoice(item)
         if let option = preference.options.first(where: { $0.id == selected }) {
             return option.title
         }
@@ -685,7 +695,7 @@ struct PreferenceRow: View {
         switch item.control {
         case .toggle:
             Toggle(language.text(""), isOn: Binding(
-                get: { store.isEnabled(item) },
+                get: { store.displayedToggleValue(item) },
                 set: { store.setToggle(item, enabled: $0) }
             ))
             .labelsHidden()
@@ -694,7 +704,7 @@ struct PreferenceRow: View {
             .accessibilityIdentifier("preference.toggle.\(item.id)")
         case .choice(let preference):
             Picker(language.text(""), selection: Binding(
-                get: { store.selectedChoice(item) },
+                get: { store.displayedChoice(item) },
                 set: { store.setChoice(item, optionID: $0) }
             )) {
                 ForEach(preference.options) { option in
@@ -741,7 +751,7 @@ struct PreferenceRow: View {
             .accessibilityIdentifier("preference.numeric.\(item.id)")
         case .privilegedToggle:
             Toggle(language.text(""), isOn: Binding(
-                get: { store.isEnabled(item) },
+                get: { store.displayedToggleValue(item) },
                 set: { pendingPrivilegedValue = $0 }
             ))
             .labelsHidden()
@@ -1708,6 +1718,64 @@ struct InfoCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(tint.opacity(0.16), lineWidth: 0.7)
         )
+    }
+}
+
+/// Tells the user a process still runs with its earlier preferences, and when
+/// it will restart: after a quiet period (with a way to postpone) or on request.
+struct RestartBanner: View {
+    @EnvironmentObject private var language: AppLanguageStore
+    let process: String
+    @ObservedObject var store: PreferencesStore
+
+    private var name: LocalizedText {
+        switch process {
+        case "Dock": return L("程序坞")
+        case "Finder": return L("访达")
+        default: return LocalizedText(verbatim: process)
+        }
+    }
+
+    var body: some View {
+        let count = store.pendingRestarts[process]?.count ?? 0
+        let seconds = store.restartCountdowns[process]
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(language.text(seconds.map { L("\(name)将在 \($0) 秒后重启，使 \(count) 项更改生效") }
+                    ?? L("\(count) 项更改将在\(name)重启后生效")))
+                    .font(.subheadline.weight(.medium))
+                if process == "Finder" {
+                    Text(language.text(L("重启访达会重新打开其窗口，正在进行的拷贝可能中断。")))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            if seconds != nil {
+                Button(language.text(L("稍后"))) { store.holdPendingRestart(process) }
+                    .accessibilityIdentifier("restart.hold.\(process)")
+            }
+            Button(language.text(L("立即重启\(name)"))) { store.restartPendingProcess(process) }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isWorking)
+                .accessibilityIdentifier("restart.now.\(process)")
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 680)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("restart.banner.\(process)")
     }
 }
 

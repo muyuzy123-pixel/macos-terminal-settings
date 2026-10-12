@@ -158,7 +158,6 @@
 "text.c132c7332af099a3" = "“suck” es un valor de animación histórico no documentado. El Dock puede recurrir a otro efecto según la versión del sistema, Reducir movimiento o cambios de implementación. Una lectura correcta no garantiza que se use la animación.";
 "text.43b351139788846" = "Mostrar la ruta completa en el título de las ventanas";
 "text.5c8503f9c8a876dc" = "Muestra la ruta POSIX de la carpeta actual en la barra de título del Finder en lugar de solo su nombre.";
-"text.4298ad1a42a6c217" = "El Finder se reinicia automáticamente";
 "text.8ef1d2d8d23a537f" = "Mostrar Salir del Finder en el menú";
 "text.5368929f51fa9904" = "Agrega el comando Salir al menú Finder. Los iconos del escritorio desaparecen temporalmente cuando se cierra el Finder.";
 "text.22cc2a4e9d6b30d8" = "Reducir las animaciones del Finder";
@@ -507,3 +506,9 @@
 "text.1deae43e601b5e42" = "Mostrar detalles y comandos";
 "text.9f5184caaa911480" = "Desconocido";
 "text.e6e0165a175d66ff" = "Descartar mensaje";
+"text.e04ae7512faa8433" = "Se aplica cuando el Finder se reinicia";
+"text.ff7603c724f72c17" = "{0} se reiniciará en {1} s para aplicar los cambios pendientes ({2})";
+"text.eeedf8fe63570800" = "Los cambios pendientes ({0}) se aplicarán cuando {1} se reinicie";
+"text.41240af6095a1cbd" = "Al reiniciar el Finder se vuelven a abrir sus ventanas y puede interrumpirse una copia en curso.";
+"text.4ea8edb5a171bc1a" = "Más tarde";
+"text.f3ba7a505e2a3b12" = "Reiniciar {0} ahora";
