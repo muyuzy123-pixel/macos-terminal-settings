@@ -414,6 +414,32 @@ private final class RecordingJournal: PreferenceTransactionJournaling, @unchecke
     }
 }
 
+/// Persists and reads normally; `clears` decides whether removal succeeds, so
+/// a completed write can leave its recovery journal behind.
+private final class StickyJournal: PreferenceTransactionJournaling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var records: [URL: UndoRecord] = [:]
+    private let clears: Bool
+
+    init(clears: Bool) { self.clears = clears }
+
+    func persist(_ record: UndoRecord, to url: URL) throws {
+        lock.lock(); records[url] = record; lock.unlock()
+    }
+
+    func read(from url: URL) throws -> UndoRecord? {
+        lock.lock(); defer { lock.unlock() }
+        return records[url]
+    }
+
+    @discardableResult
+    func remove(at url: URL) -> Bool {
+        guard clears else { return false }
+        lock.lock(); records.removeValue(forKey: url); lock.unlock()
+        return true
+    }
+}
+
 /// A helper can time out after accepting a write. Successful compensation does
 /// not prove that helper has exited, so this double verifies WAL retention.
 private final class TimedOutPowerExecutor: PowerSettingsExecuting, @unchecked Sendable {
@@ -554,6 +580,9 @@ struct TerminalSettingsChecks {
         try checkPrivilegedTimeoutRetainsJournal(language: .spanish)
         try checkUnreadableJournalFailClosedContract()
         try checkRefreshKeepsDisplayAndTextDrafts()
+        try checkNoticeKinds()
+        try checkNoticeDismissalPolicy()
+        try checkUnverifiedSystemMessage()
         let contractOnly = ProcessInfo.processInfo.environment[
             "TERMINAL_SETTINGS_CONTRACT_ONLY"
         ] == "1"
@@ -2578,6 +2607,125 @@ struct TerminalSettingsChecks {
         store.refreshAll()
         try waitUntil("外部修改后的刷新未完成") { !store.isWorking }
         try require(store.textDrafts[nameItem.id] == "外部前缀", "未编辑的文字草稿没有跟随外部新值")
+    }
+
+    /// A partial outcome must not look like a plain confirmation, and a
+    /// delayed dismissal must only remove the notice it was scheduled for.
+    @MainActor
+    private static func checkNoticeKinds() throws {
+        guard let item = PreferenceCatalog.items.first(where: { $0.id == "finder.posixTitle" }),
+              case .toggle(let toggle) = item.control else {
+            throw CheckFailure.failed("缺少通知类型测试项目")
+        }
+        for clearsJournal in [true, false] {
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+                .appendingPathComponent("TerminalSettingsNotice-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let log = RecordingDependencyLog()
+            let store = PreferencesStore(
+                executor: RecordingPreferenceExecutor(
+                    values: [:],
+                    allowedMutations: toggle.enableMutations.map { ($0.address, $0.value) },
+                    log: log
+                ),
+                restarter: RecordingRestarter(log: log), managementProvider: RecordingManagementProvider(log: log),
+                powerExecutor: FailClosedPowerExecutor(log: log), journal: StickyJournal(clears: clearsJournal),
+                appState: InMemoryApplicationState(), timeProvider: FixedTimeProvider(),
+                identifierProvider: FixedIdentifierProvider(),
+                undoStorageURL: directory.appendingPathComponent("last-undo.json")
+            )
+            store.refreshAll()
+            try waitUntil("通知类型测试的初次读取未完成") { !store.isWorking }
+            store.setToggle(item, enabled: true)
+            try waitUntil("通知类型测试的写入未完成") { !store.isWorking }
+            guard let notice = store.notice else {
+                throw CheckFailure.failed("写入完成后没有通知")
+            }
+            try require(notice.kind == (clearsJournal ? .success : .warning),
+                        clearsJournal ? "完整写入应显示成功通知" : "保留写前恢复日志时应显示警告通知")
+            store.dismissNotice(id: UUID())
+            try require(store.notice?.id == notice.id, "按 id 关闭移除了其他通知")
+            store.dismissNotice(id: notice.id)
+            try require(store.notice == nil, "按 id 关闭未移除对应通知")
+        }
+    }
+
+    private static func checkNoticeDismissalPolicy() throws {
+        let notice = AppNotice(message: "timer contract", canUndo: true)
+        func policy(hovering: Bool = false, voiceOver: Bool = false) -> NoticeDismissalPolicy {
+            NoticeDismissalPolicy(notice: notice, uptime: 0, isHovering: hovering,
+                                  isVoiceOverEnabled: voiceOver)
+        }
+        func canDismiss(_ policy: NoticeDismissalPolicy) -> Bool {
+            policy.dismissalID(currentNoticeID: notice.id, taskIsCancelled: false) == notice.id
+        }
+
+        var uninterrupted = policy()
+        uninterrupted.update(uptime: 5.99, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(uninterrupted), "成功通知在六秒阅读时间前被关闭")
+        uninterrupted.update(uptime: 6, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(uninterrupted), "成功通知六秒后未到期")
+
+        var paused = policy()
+        paused.update(uptime: 1, isHovering: true, isVoiceOverEnabled: false)
+        paused.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        paused.update(uptime: 6, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(paused) && paused.remainingReadableTime == 2,
+                    "悬停一至三秒没有暂停通知计时")
+        paused.update(uptime: 8, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(paused), "悬停后没有累计完整六秒阅读时间")
+
+        var initiallyHovered = policy(hovering: true)
+        initiallyHovered.update(uptime: 7, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initiallyHovered) && initiallyHovered.remainingReadableTime == 6,
+                    "悬停跨过原截止时间后通知在离开时立即关闭")
+        initiallyHovered.update(uptime: 12.99, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initiallyHovered), "初始悬停后的六秒阅读时间被缩短")
+        initiallyHovered.update(uptime: 13, isHovering: false, isVoiceOverEnabled: false)
+        try require(canDismiss(initiallyHovered), "初始悬停后的通知没有到期")
+
+        var toggledVoiceOver = policy()
+        toggledVoiceOver.update(uptime: 2, isHovering: false, isVoiceOverEnabled: true)
+        toggledVoiceOver.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        toggledVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(toggledVoiceOver.automaticDismissalCancelled && !canDismiss(toggledVoiceOver),
+                    "通知期间启用再关闭 VoiceOver 后仍会自动关闭")
+        var hoveredVoiceOver = policy(hovering: true)
+        hoveredVoiceOver.update(uptime: 2, isHovering: true, isVoiceOverEnabled: true)
+        hoveredVoiceOver.update(uptime: 3, isHovering: false, isVoiceOverEnabled: false)
+        hoveredVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(hoveredVoiceOver), "悬停期间启用 VoiceOver 没有取消自动关闭")
+        var initialVoiceOver = policy(voiceOver: true)
+        initialVoiceOver.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(!canDismiss(initialVoiceOver), "初始启用 VoiceOver 的通知会自动关闭")
+
+        let warning = AppNotice(message: "warning contract", canUndo: true, kind: .warning)
+        var warningPolicy = NoticeDismissalPolicy(notice: warning, uptime: 0, isHovering: false,
+                                                 isVoiceOverEnabled: false)
+        warningPolicy.update(uptime: 100, isHovering: false, isVoiceOverEnabled: false)
+        try require(warningPolicy.automaticDismissalCancelled &&
+                        warningPolicy.dismissalID(currentNoticeID: warning.id, taskIsCancelled: false) == nil,
+                    "警告通知会自动关闭")
+        try require(uninterrupted.dismissalID(currentNoticeID: notice.id, taskIsCancelled: true) == nil,
+                    "已取消的通知任务仍然可以关闭通知")
+        try require(uninterrupted.dismissalID(currentNoticeID: UUID(), taskIsCancelled: false) == nil &&
+                        uninterrupted.dismissalID(currentNoticeID: nil, taskIsCancelled: false) == nil,
+                    "旧通知的计时策略可以关闭替换后的通知")
+        print("Notice dismissal contracts passed: readable time, hover pause, sticky VoiceOver, warnings, cancellation, and notice identity")
+    }
+
+    private static func checkUnverifiedSystemMessage() throws {
+        let items = PreferenceCatalog.items
+        let verified = OperatingSystemVersion(majorVersion: 26, minorVersion: 6, patchVersion: 2)
+        let newer = OperatingSystemVersion(majorVersion: 26, minorVersion: 6, patchVersion: 3)
+        let unsupported = OperatingSystemVersion(majorVersion: 13, minorVersion: 7, patchVersion: 0)
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: verified) == nil,
+                    "已验证系统不应显示未验证横幅")
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: newer)?.source.contains("26.6.3") == true,
+                    "较新系统应显示一条未验证横幅")
+        try require(PreferenceCatalog.unverifiedMessage(for: items, version: unsupported) == nil &&
+                        PreferenceCatalog.unverifiedMessage(for: [], version: newer) == nil,
+                    "不支持的系统或空页面不应显示未验证横幅")
     }
 
     @MainActor

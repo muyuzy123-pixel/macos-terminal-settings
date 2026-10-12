@@ -512,14 +512,56 @@ struct AppAlert: Identifiable {
 }
 
 struct AppNotice: Identifiable {
+    enum Kind: Equatable {
+        /// A completed action. The notice dismisses itself after a short delay.
+        case success
+        /// A partial outcome that needs attention. It stays until closed.
+        case warning
+    }
+
     let id: UUID
     let message: LocalizedText
     let canUndo: Bool
+    let kind: Kind
 
-    init(id: UUID = UUID(), message: LocalizedText, canUndo: Bool) {
+    init(id: UUID = UUID(), message: LocalizedText, canUndo: Bool, kind: Kind = .success) {
         self.id = id
         self.message = message
         self.canUndo = canUndo
+        self.kind = kind
+    }
+}
+
+/// The view supplies monotonic timestamps for timer ticks and hover changes.
+/// VoiceOver cancels automatic dismissal for this notice, even if later disabled.
+struct NoticeDismissalPolicy {
+    let noticeID: UUID
+    private(set) var remainingReadableTime: TimeInterval = 6
+    private(set) var automaticDismissalCancelled: Bool
+    private var lastUptime: TimeInterval
+    private var wasHovering: Bool
+
+    init(notice: AppNotice, uptime: TimeInterval, isHovering: Bool, isVoiceOverEnabled: Bool) {
+        noticeID = notice.id
+        lastUptime = uptime
+        wasHovering = isHovering
+        automaticDismissalCancelled = notice.kind == .warning || isVoiceOverEnabled
+    }
+
+    mutating func update(uptime: TimeInterval, isHovering: Bool, isVoiceOverEnabled: Bool) {
+        let elapsed = max(0, uptime - lastUptime)
+        lastUptime = max(lastUptime, uptime)
+        if !wasHovering, !automaticDismissalCancelled {
+            remainingReadableTime = max(0, remainingReadableTime - elapsed)
+        }
+        wasHovering = isHovering
+        if isVoiceOverEnabled { automaticDismissalCancelled = true }
+    }
+
+    func dismissalID(currentNoticeID: UUID?, taskIsCancelled: Bool) -> UUID? {
+        guard !taskIsCancelled, !automaticDismissalCancelled, !wasHovering,
+              remainingReadableTime <= 0, currentNoticeID == noticeID else { return nil }
+        return noticeID
     }
 }
 
@@ -721,7 +763,8 @@ final class PreferencesStore: ObservableObject {
             message: persisted
                 ? L("已放弃“\(item.title)”的旧接管记录；系统当前值未更改")
                 : L("已放弃本次运行中的旧接管记录，但本地状态持久化未确认；系统当前值未更改"),
-            canUndo: canUndo
+            canUndo: canUndo,
+            kind: persisted ? .success : .warning
         )
     }
 
@@ -1351,7 +1394,8 @@ final class PreferencesStore: ObservableObject {
                             message: journalPersisted
                                 ? L("系统值已恢复，但接管前基线未能持久化；恢复日志和撤销记录已保留，请重试撤销")
                                 : L("系统值已恢复，但接管前基线和恢复日志均未能持久化；本次运行已锁定普通写入，请先重试撤销"),
-                            canUndo: true
+                            canUndo: true,
+                            kind: .warning
                         )
                     } else if self.clearPendingPreferenceTransaction() {
                         self.clearUndoRecord()
@@ -1359,7 +1403,8 @@ final class PreferencesStore: ObservableObject {
                     } else {
                         self.notice = self.makeNotice(
                             message: L("系统值已恢复，但写前恢复日志未能清理；可再次撤销以重试清理"),
-                            canUndo: true
+                            canUndo: true,
+                            kind: .warning
                         )
                     }
                     self.resyncTextDrafts(for: itemIDs)
@@ -1450,7 +1495,8 @@ final class PreferencesStore: ObservableObject {
                     } else {
                         self.notice = self.makeNotice(
                             message: L("高级系统值已恢复，但写前恢复日志未能清理；可再次撤销以重试清理"),
-                            canUndo: true
+                            canUndo: true,
+                            kind: .warning
                         )
                     }
                     self.refreshAll(preservingDisplayedState: true)
@@ -1466,6 +1512,12 @@ final class PreferencesStore: ObservableObject {
 
     func dismissNotice() {
         notice = nil
+    }
+
+    /// Dismisses only the given notice, so a delayed dismissal never removes
+    /// a newer notice that replaced it in the meantime.
+    func dismissNotice(id: UUID) {
+        if notice?.id == id { notice = nil }
     }
 
     func previewCommands(for item: PreferenceItem) -> [(LocalizedText, String)] {
@@ -1928,10 +1980,13 @@ final class PreferencesStore: ObservableObject {
                     if !persisted || !journalCleared {
                         self.hasPendingPreferenceTransaction = true
                     }
-                    let suffix = persisted && journalCleared
-                        ? ""
-                        : L("（写前恢复日志已保留；请先撤销后再继续修改）")
-                    self.notice = self.makeNotice(message: title + suffix, canUndo: true)
+                    let completed = persisted && journalCleared
+                    let suffix = completed ? "" : L("（写前恢复日志已保留；请先撤销后再继续修改）")
+                    self.notice = self.makeNotice(
+                        message: title + suffix,
+                        canUndo: true,
+                        kind: completed ? .success : .warning
+                    )
                 case .failure(let error):
                     let recoveryAvailable: Bool
                     if retainPendingJournal {
@@ -2205,10 +2260,13 @@ final class PreferencesStore: ObservableObject {
                         journalCleared = false
                         self.hasPendingPreferenceTransaction = true
                     }
-                    let suffix = persisted && recoveryPersisted && journalCleared
-                        ? ""
-                        : L("（写前恢复日志已保留；请先撤销后再继续修改）")
-                    self.notice = self.makeNotice(message: title + suffix, canUndo: self.canUndo)
+                    let completed = persisted && recoveryPersisted && journalCleared
+                    let suffix = completed ? "" : L("（写前恢复日志已保留；请先撤销后再继续修改）")
+                    self.notice = self.makeNotice(
+                        message: title + suffix,
+                        canUndo: self.canUndo,
+                        kind: completed ? .success : .warning
+                    )
                     self.resyncTextDrafts(for: itemIDs)
                     self.refreshAll(preservingDisplayedState: true)
                 case .failure(let error):
@@ -2351,11 +2409,16 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
-    private func makeNotice(message: LocalizedText, canUndo: Bool) -> AppNotice {
+    private func makeNotice(
+        message: LocalizedText,
+        canUndo: Bool,
+        kind: AppNotice.Kind = .success
+    ) -> AppNotice {
         AppNotice(
             id: identifierProvider.makeIdentifier(),
             message: message,
-            canUndo: canUndo
+            canUndo: canUndo,
+            kind: kind
         )
     }
 
