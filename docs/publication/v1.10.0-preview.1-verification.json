@@ -301,5 +301,67 @@
     "archive_private": true,
     "archive_archived": false,
     "archive_anonymous_api_status": 404
+  },
+  "postpublication_checks": {
+    "checked_at_utc": "2026-10-12T13:47:05.816284+00:00",
+    "publication_documentation_commit": "0f799fb8cfb714c67915ac506107df05da9e0cfd",
+    "publication_documentation_ci": "https://github.com/muyuzy123-pixel/macos-terminal-settings/actions/runs/38257661356",
+    "publication_documentation_ci_conclusion": "success",
+    "publication_documentation_ci_email_scan": "passed",
+    "anonymous_raw_files_match_published_commit": [
+      {
+        "path": "README.md",
+        "http_status": 200,
+        "sha256": "fc57557ca0e3284c5925fb0c07764ea9c0e24436a33e3f1299f1d54dbeb44c7c"
+      },
+      {
+        "path": "README.zh-CN.md",
+        "http_status": 200,
+        "sha256": "5cd436d32569f2829c1cc3ce4d6ef288a389194a729c1548363f63881942049e"
+      },
+      {
+        "path": "SECURITY.md",
+        "http_status": 200,
+        "sha256": "c4588f03584c819f51872b4e23e1d9dedf22892ce86fb79b224738c5c306d6cd"
+      },
+      {
+        "path": "LICENSE",
+        "http_status": 200,
+        "sha256": "ba18e218589617fda5369b3e9ba7261e1e7284121a5b3e80a552861e0901a210"
+      },
+      {
+        "path": "docs/images/dock-numeric-controls-en.png",
+        "http_status": 200,
+        "sha256": "a4d5e17795cf89d9f2becb002ab454be39a3ffffc07457fdfeccd3207977951b"
+      },
+      {
+        "path": "docs/images/dock-numeric-controls-zh-Hans.png",
+        "http_status": 200,
+        "sha256": "25076cd94ed7661bc6db7a07425afe823ce0a93cf0cfbcd25f2035c3f538c3dd"
+      },
+      {
+        "path": "docs/publication/v1.10.0-preview.1-verification.json",
+        "http_status": 200,
+        "sha256": "29700b844486597e2de6516e874f5fd9fca523a18723e5ae89d3722228ae0580"
+      }
+    ],
+    "logged_out_browser": {
+      "release_title_tag_prerelease_notice_checked": true,
+      "english_readme_checked": true,
+      "chinese_readme_checked": true,
+      "chinese_file_page_transient_error": "GitHub file page initially failed; its reload succeeded.",
+      "english_image_loaded_native_dimensions": [
+        2120,
+        1520
+      ],
+      "chinese_image_loaded_native_dimensions": [
+        2120,
+        1520
+      ],
+      "both_download_links_target": "v1.10.0-preview.1"
+    },
+    "chinese_emphasis_rendering": "Removed a literal Markdown delimiter sequence; the corrected paragraph passed GitHub Markdown rendering.",
+    "final_documentation_ci_reference": "The Release links the CI run for the subsequent documentation-only finalization commit.",
+    "private_vulnerability_reporting_enabled": true
   }
 }
